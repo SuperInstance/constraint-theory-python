@@ -31,7 +31,7 @@ impl PyManifold {
         self.inner.state_count()
     }
 
-    /// Get the density parameter
+    /// Get the density parameter used to create this manifold
     #[getter]
     pub fn density(&self) -> usize {
         self.density
@@ -43,8 +43,8 @@ impl PyManifold {
         (snapped[0], snapped[1], noise)
     }
 
-    /// Snap multiple vectors at once (SIMD optimized)
-    pub fn snap_batch(&self, py: Python<'_>, vectors: &PyList) -> PyResult<Vec<(f32, f32, f32)>> {
+    /// Snap multiple vectors at once using SIMD
+    pub fn snap_batch_simd(&self, py: Python<'_>, vectors: &PyList) -> PyResult<Vec<(f32, f32, f32)>> {
         let input: Vec<[f32; 2]> = vectors
             .iter()
             .map(|item| {
@@ -84,8 +84,8 @@ pub fn generate_triples(max_c: i32) -> Vec<(i32, i32, i32)> {
             let b = 2 * m * n;
             let c = m * m + n * n;
             if c > max_c { break; }
-            if (m - n) % 2 == 1 && gcd(m - n, m) == 1 {
-                let (mut ka, mut kb, mut kc) = (a, b, c);
+            if (m - n) % 2 == 1 { // primitive condition
+                let mut ka = a; let mut kb = b; let mut kc = c;
                 while kc <= max_c {
                     triples.push(if ka <= kb {(ka,kb,kc)} else {(kb,ka,kc)});
                     ka += a; kb += b; kc += c;
@@ -97,10 +97,6 @@ pub fn generate_triples(max_c: i32) -> Vec<(i32, i32, i32)> {
     triples.sort_by_key(|t| t.2);
     triples.dedup();
     triples
-}
-
-fn gcd(a: i32, b: i32) -> i32 {
-    if b == 0 { a.abs() } else { gcd(b, a % b) }
 }
 
 #[pymodule]
