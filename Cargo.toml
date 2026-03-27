@@ -9,8 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.20", features = ["extension-module"] }
-constraint-theory-core = "0.1"
-
-# For development, uncomment the line below and comment the crates.io version above
-# [dependencies.constraint-theory-core]
-# path = "../constraint-theory-core"
+numpy = "0.20"
+ndarray = "0.15"
+constraint-theory-core = "1.0"
