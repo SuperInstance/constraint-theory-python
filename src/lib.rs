@@ -5,7 +5,6 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 
 use constraint_theory_core::{PythagoreanManifold, snap as rust_snap};
 
@@ -50,108 +49,136 @@ impl PyManifold {
         (snapped[0], snapped[1], noise)
     }
 
-    /// Snap multiple vectors at once (SIMD optimized)
+    /// Snap multiple vectors at once using SIMD (more efficient for large batches)
     ///
     /// Args:
-    ///     vectors: List of [x, y] pairs or Nx2 numpy array
+    ///     vectors: List of (x, y) tuples
     ///
     /// Returns:
     ///     List of (snapped_x, snapped_y, noise) tuples
-    pub fn snap_batch(&self, py: Python<'_>, vectors: &PyAny) -> PyResult<Vec<(f32, f32, f32)>> {
-        // Try to interpret as numpy array first
-        if let Ok(arr) = vectors.extract::<PyReadonlyArray2<f32>>() {
-            let array = arr.as_array();
-            let mut results = Vec::with_capacity(array.nrows());
-            
-            for row in array.rows() {
-                let (snapped, noise) = self.inner.snap([row[0], row[1]]);
-                results.push((snapped[0], snapped[1], noise));
-            }
-            
-            return Ok(results);
-        }
+    pub fn snap_batch_simd(&self, py: Python<'_>, vectors: &PyList) -> PyResult<Vec<(f32, f32, f32)>> {
+        let input: Vec<[f32; 2]> = vectors
+            .iter()
+            .map(|item| {
+                let tuple: (f32, f32) = item.extract()?;
+                Ok([tuple.0, tuple.1])
+            })
+            .collect::<PyResult<Vec<_>>>()?;
         
-        // Fall back to list of pairs
-        let list: &PyList = vectors.extract()?;
-        let mut results = Vec::with_capacity(list.len());
-        
-        for item in list.iter() {
-            let pair: (f32, f32) = item.extract()?;
-            let (snapped, noise) = self.inner.snap([pair.0, pair.1]);
-            results.push((snapped[0], snapped[1], noise));
-        }
-        
-        Ok(results)
+        py.allow_threads(|| {
+            let results = self.inner.snap_batch_simd(&input);
+            Ok(results.into_iter().map(|(s, n)| (s[0], s[1], n)).collect())
+        })
     }
 
-    /// String representation
+    /// Get all valid states in the manifold
+    ///
+    /// Returns:
+    ///     List of (x, y) tuples representing valid Pythagorean coordinates
+    pub fn states(&self) -> Vec<(f32, f32)> {
+        self.inner.states().iter().map(|s| (s[0], s[1])).collect()
+    }
+
+    /// Get a human-readable string representation
     fn __repr__(&self) -> String {
-        format!("PythagoreanManifold(density={}, states={})", 
-                self.inner.state_count() / 5, // Approximate density from state count
-                self.inner.state_count())
+        format!(
+            "PythagoreanManifold(states={})",
+            self.inner.state_count()
+        )
     }
 
-    /// String representation
+    /// Get a short string representation
     fn __str__(&self) -> String {
-        self.__repr__()
+        format!("Manifold({} states)", self.inner.state_count())
     }
 }
 
-/// Snap a vector to a Pythagorean manifold
-///
-/// Convenience function for one-off snaps. For multiple snaps,
-/// create a PythagoreanManifold and use its snap method.
+/// Snap a vector to the nearest Pythagorean triple using a default manifold
 ///
 /// Args:
-///     manifold: The PythagoreanManifold to use
 ///     x: X coordinate
 ///     y: Y coordinate
+///     density: Optional density parameter (default: 200)
 ///
 /// Returns:
 ///     Tuple of (snapped_x, snapped_y, noise)
 #[pyfunction]
-pub fn snap(manifold: &PyManifold, x: f32, y: f32) -> (f32, f32, f32) {
-    manifold.snap(x, y)
+#[pyo3(signature = (x, y, density=200))]
+pub fn snap(x: f32, y: f32, density: usize) -> (f32, f32, f32) {
+    let manifold = PythagoreanManifold::new(density);
+    let (snapped, noise) = rust_snap(&manifold.inner, [x, y]);
+    (snapped[0], snapped[1], noise)
 }
 
-/// Generate primitive Pythagorean triples up to a maximum hypotenuse
+/// Generate Pythagorean triples up to a maximum hypotenuse
 ///
 /// Args:
-///     max_c: Maximum value of c (hypotenuse)
+///     max_c: Maximum hypotenuse value
 ///
 /// Returns:
 ///     List of (a, b, c) tuples where a² + b² = c²
 #[pyfunction]
-pub fn generate_triples(max_c: usize) -> Vec<(u32, u32, u32)> {
+pub fn generate_triples(max_c: i32) -> Vec<(i32, i32, i32)> {
     let mut triples = Vec::new();
     
-    for m in 2..=((max_c as f64).sqrt() as usize) {
+    // Use Euclid's formula: a = m² - n², b = 2mn, c = m² + n²
+    // where m > n, gcd(m,n) = 1, and m-n is odd for primitive triples
+    let mut m: i32 = 2;
+    while m * m + 1 <= max_c {
         for n in 1..m {
-            if (m - n) % 2 == 1 && gcd(m, n) == 1 {
-                let a = (m * m - n * n) as u32;
-                let b = (2 * m * n) as u32;
-                let c = (m * m + n * n) as u32;
-                
-                if c <= max_c as u32 {
-                    triples.push((a, b, c));
+            let a = m * m - n * n;
+            let b = 2 * m * n;
+            let c = m * m + n * n;
+            
+            if c > max_c {
+                break;
+            }
+            
+            // Check if primitive (gcd condition)
+            if gcd(m - n, m) == 1 && (m - n) % 2 == 1 {
+                // Add primitive and all multiples
+                let mut ka = a;
+                let mut kb = b;
+                let mut kc = c;
+                while kc <= max_c {
+                    // Ensure consistent ordering (a <= b)
+                    if ka <= kb {
+                        triples.push((ka, kb, kc));
+                    } else {
+                        triples.push((kb, ka, kc));
+                    }
+                    ka += a;
+                    kb += b;
+                    kc += c;
                 }
             }
         }
+        m += 1;
     }
     
+    // Sort by c value
+    triples.sort_by_key(|t| t.2);
+    triples.dedup();
     triples
 }
 
-fn gcd(a: usize, b: usize) -> usize {
-    if b == 0 { a } else { gcd(b, a % b) }
+/// Helper function to compute GCD
+fn gcd(a: i32, b: i32) -> i32 {
+    if b == 0 { a.abs() } else { gcd(b, a % b) }
 }
 
 /// Python module definition
 #[pymodule]
-fn constraint_theory(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn constraint_theory(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyManifold>()?;
     m.add_function(wrap_pyfunction!(snap, m)?)?;
     m.add_function(wrap_pyfunction!(generate_triples, m)?)?;
+    
+    // Add module docstring
+    m.add("__doc__", "Python bindings for Constraint Theory - deterministic geometric snapping with O(log n) KD-tree lookup")?;
+    
+    // Add version
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    
     Ok(())
 }
