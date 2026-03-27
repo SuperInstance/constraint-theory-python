@@ -1,0 +1,39 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "constraint-theory"
+version = "0.1.0"
+description = "Python bindings for Constraint Theory - deterministic geometric snapping with O(log n) KD-tree lookup"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["geometry", "spatial", "deterministic", "pythagorean", "manifold", "kd-tree"]
+
+[project.optional-dependencies]
+dev = ["pytest", "numpy", "maturin"]
+
+[project.urls]
+Homepage = "https://constraint-theory.superinstance.ai"
+Documentation = "https://github.com/SuperInstance/constraint-theory-python#readme"
+Repository = "https://github.com/SuperInstance/constraint-theory-python"
+"Bug Tracker" = "https://github.com/SuperInstance/constraint-theory-python/issues"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

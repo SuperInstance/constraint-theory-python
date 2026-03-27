@@ -1,0 +1,18 @@
+[package]
+name = "constraint-theory-python"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "constraint_theory_python"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+constraint-theory-core = "0.1"
+numpy = "0.20"
+
+[dependencies.constraint-theory-core]
+version = "0.1"
+# For development, use local path:
+# path = "../constraint-theory-core"
