@@ -1,0 +1,23 @@
+# CODEOWNERS - Define owners for code review
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @SuperInstance
+
+# Python bindings
+/constraint_theory/ @SuperInstance
+/pyproject.toml @SuperInstance
+
+# Rust source code
+/src/ @SuperInstance
+/Cargo.toml @SuperInstance
+
+# Documentation
+/README.md @SuperInstance
+/examples/ @SuperInstance
+
+# GitHub configuration
+/.github/ @SuperInstance
+
+# Tests
+/tests/ @SuperInstance

@@ -9,31 +9,83 @@ description = "Python bindings for Constraint Theory - deterministic geometric s
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
+authors = [
+    {name = "SuperInstance", email = "contact@superinstance.ai"}
+]
+maintainers = [
+    {name = "SuperInstance", email = "contact@superinstance.ai"}
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
-keywords = ["geometry", "spatial", "deterministic", "pythagorean", "manifold", "kd-tree"]
+keywords = [
+    "geometry",
+    "spatial",
+    "deterministic",
+    "pythagorean",
+    "manifold",
+    "kd-tree",
+    "snapping",
+    "vector",
+    "mathematics",
+    "pyo3",
+    "rust",
+]
 
 [project.optional-dependencies]
-dev = ["pytest", "numpy", "maturin"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "numpy>=1.20",
+    "maturin>=1.0",
+]
+numpy = ["numpy>=1.20"]
+all = [
+    "numpy>=1.20",
+]
 
 [project.urls]
 Homepage = "https://constraint-theory.superinstance.ai"
 Documentation = "https://github.com/SuperInstance/constraint-theory-python#readme"
 Repository = "https://github.com/SuperInstance/constraint-theory-python"
 "Bug Tracker" = "https://github.com/SuperInstance/constraint-theory-python/issues"
+Changelog = "https://github.com/SuperInstance/constraint-theory-python/releases"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+python-source = "constraint_theory"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["constraint_theory"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
