@@ -2,11 +2,29 @@
 name = "constraint-theory-python"
 version = "0.1.0"
 edition = "2021"
+description = "Python bindings for Constraint Theory - deterministic geometric snapping"
+license = "MIT"
+repository = "https://github.com/SuperInstance/constraint-theory-python"
+documentation = "https://github.com/SuperInstance/constraint-theory-core"
+readme = "README.md"
+keywords = ["geometry", "pythagorean", "deterministic", "pyo3", "rust"]
+categories = ["science", "mathematics", "api-bindings"]
+
+# Version pinning requirements (PASS 8)
+# This crate depends on constraint-theory-core with semver compatibility
+# Python bindings version 0.1.x is compatible with core 1.0.x
 
 [lib]
 name = "constraint_theory_python"
 crate-type = ["cdylib"]
 
 [dependencies]
+# PyO3 for Python bindings - LTS version
 pyo3 = { version = "0.20", features = ["extension-module"] }
+
+# Core library - pinned for stability (PASS 8)
+# Compatible versions: >= 1.0.0, < 2.0.0
 constraint-theory-core = "1.0.1"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]

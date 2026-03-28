@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
 Quick start example for Constraint Theory Python bindings.
+
+Run with: python examples/quickstart.py
+
+Requirements:
+    pip install constraint-theory
 """
 
 from constraint_theory import PythagoreanManifold, generate_triples, snap

@@ -3,12 +3,29 @@
 //! This module provides Python access to the Constraint Theory Rust library
 //! via PyO3 bindings. It matches the Rust core API from Iteration 1.
 //!
+//! # Schema Alignment (PASS 5)
+//!
+//! This Python API is designed to match the Rust core exactly:
+//!
+//! | Rust (constraint-theory-core) | Python (this module) |
+//! |-------------------------------|----------------------|
+//! | `PythagoreanManifold::new(density: usize)` | `PythagoreanManifold(density: int)` |
+//! | `manifold.snap([x, y]) -> ([f32; 2], f32)` | `manifold.snap(x, y) -> (float, float, float)` |
+//! | `manifold.snap_batch_simd(&vectors)` | `manifold.snap_batch(vectors)` |
+//! | `manifold.state_count()` | `manifold.state_count` (property) |
+//!
 //! # Modules Bound
 //!
 //! - `hidden_dimensions`: Hidden dimension encoding (k = ⌈log₂(1/ε)⌉)
 //! - `quantizer`: PythagoreanQuantizer with TERNARY/POLAR/TURBO/HYBRID modes
 //! - `holonomy`: Holonomy verification for constraint consistency
 //! - `manifold`: Core PythagoreanManifold for 2D snapping
+//!
+//! # Cross-Reference
+//!
+//! - Rust Core: https://github.com/SuperInstance/constraint-theory-core
+//! - WASM Bindings: https://github.com/SuperInstance/constraint-theory-wasm
+//! - Research: https://github.com/SuperInstance/constraint-theory-research
 
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
@@ -44,12 +61,6 @@ pub fn hidden_dim_count(epsilon: f64) -> usize {
 }
 
 /// Compute precision from hidden dimension count (inverse of hidden_dim_count).
-///
-/// Args:
-///     k (int): Number of hidden dimensions
-///
-/// Returns:
-///     float: Achievable precision: ε = 2^(-k)
 #[pyfunction]
 pub fn precision_from_hidden_dims(k: usize) -> f64 {
     2.0_f64.powi(-(k as i32))
@@ -58,13 +69,6 @@ pub fn precision_from_hidden_dims(k: usize) -> f64 {
 /// Compute holographic accuracy for a given configuration.
 ///
 /// Formula: accuracy(k, n) = k/n + O(1/log n)
-///
-/// Args:
-///     k (int): Number of hidden dimensions
-///     n (int): Total dimensionality (visible + hidden)
-///
-/// Returns:
-///     float: Holographic accuracy ratio (0.0 to 1.0)
 #[pyfunction]
 pub fn holographic_accuracy(k: usize, n: usize) -> f64 {
     if n == 0 {
@@ -80,13 +84,6 @@ pub fn holographic_accuracy(k: usize, n: usize) -> f64 {
 }
 
 /// Lift a point to higher dimensions by adding hidden dimensions.
-///
-/// Args:
-///     point (list[float]): The n-dimensional point to lift
-///     k (int): Number of hidden dimensions to add
-///
-/// Returns:
-///     list[float]: Point in R^(n+k) with hidden dimensions
 #[pyfunction]
 pub fn lift_to_hidden(point: Vec<f64>, k: usize) -> Vec<f64> {
     let n = point.len();
@@ -95,7 +92,7 @@ pub fn lift_to_hidden(point: Vec<f64>, k: usize) -> Vec<f64> {
     // Copy visible dimensions
     lifted.extend_from_slice(&point);
     
-    // Initialize hidden dimensions
+    // Initialize hidden dimensions with geometric progression
     for i in 0..k {
         let hidden_val = 2.0_f64.powi(-(i as i32 + 1));
         lifted.push(hidden_val);
@@ -105,32 +102,12 @@ pub fn lift_to_hidden(point: Vec<f64>, k: usize) -> Vec<f64> {
 }
 
 /// Project a lifted point back to visible dimensions.
-///
-/// Args:
-///     lifted (list[float]): Point in R^(n+k) with hidden dimensions
-///     n (int): Number of visible dimensions
-///
-/// Returns:
-///     list[float]: Point in R^n (visible dimensions only)
 #[pyfunction]
 pub fn project_to_visible(lifted: Vec<f64>, n: usize) -> Vec<f64> {
     lifted.iter().take(n).copied().collect()
 }
 
 /// Encode a point using hidden dimensions for exact constraint satisfaction.
-///
-/// Algorithm:
-/// 1. Compute k = ⌈log₂(1/ε)⌉ hidden dimensions
-/// 2. Lift point to R^(n+k)
-/// 3. Snap to lattice in lifted space
-/// 4. Project back to visible space
-///
-/// Args:
-///     point (list[float]): The point to encode
-///     epsilon (float): Target precision
-///
-/// Returns:
-///     list[float]: Encoded point satisfying constraints to within epsilon
 #[pyfunction]
 pub fn encode_with_hidden_dims(point: Vec<f64>, epsilon: f64) -> Vec<f64> {
     let n = point.len();
@@ -193,23 +170,16 @@ fn snap_to_rational_internal(value: f64) -> f64 {
 /// Configuration for hidden dimension encoding.
 #[pyclass(name = "HiddenDimensionConfig")]
 pub struct PyHiddenDimensionConfig {
-    /// Target precision for encoding
     #[pyo3(get)]
     pub epsilon: f64,
-    /// Number of hidden dimensions (computed from epsilon)
     #[pyo3(get)]
     pub hidden_dims: usize,
-    /// Whether to use cross-plane optimization
     #[pyo3(get)]
     pub cross_plane_optimization: bool,
 }
 
 #[pymethods]
 impl PyHiddenDimensionConfig {
-    /// Create a new configuration with the given precision.
-    ///
-    /// Args:
-    ///     epsilon (float): Target precision
     #[new]
     pub fn new(epsilon: f64) -> Self {
         Self {
@@ -219,7 +189,6 @@ impl PyHiddenDimensionConfig {
         }
     }
     
-    /// Create a configuration with explicit hidden dimension count.
     #[staticmethod]
     pub fn with_hidden_dims(hidden_dims: usize) -> Self {
         Self {
@@ -229,7 +198,6 @@ impl PyHiddenDimensionConfig {
         }
     }
     
-    /// Encode a point using this configuration.
     pub fn encode(&self, point: Vec<f64>) -> Vec<f64> {
         encode_with_hidden_dims(point, self.epsilon)
     }
@@ -261,28 +229,23 @@ pub enum PyQuantizationMode {
 #[pyclass(name = "Rational")]
 #[derive(Clone, Copy, Debug)]
 pub struct PyRational {
-    /// Numerator
     #[pyo3(get)]
     pub num: i64,
-    /// Denominator (always positive)
     #[pyo3(get)]
     pub den: u64,
 }
 
 #[pymethods]
 impl PyRational {
-    /// Create a new rational number.
     #[new]
     pub fn new(num: i64, den: u64) -> Self {
         Self { num, den }
     }
     
-    /// Convert to floating point.
     pub fn to_f64(&self) -> f64 {
         self.num as f64 / self.den as f64
     }
     
-    /// Check if this is a Pythagorean ratio.
     pub fn is_pythagorean(&self) -> bool {
         let a = self.num.unsigned_abs() as u64;
         let c = self.den;
@@ -309,34 +272,26 @@ impl PyRational {
 #[pyclass(name = "QuantizationResult")]
 #[derive(Clone, Debug)]
 pub struct PyQuantizationResult {
-    /// Quantized data
     #[pyo3(get)]
     pub data: Vec<f64>,
-    /// Quantization mode used (as string)
     #[pyo3(get)]
     pub mode: String,
-    /// Bits per element
     #[pyo3(get)]
     pub bits: u8,
-    /// Mean squared error from original
     #[pyo3(get)]
     pub mse: f64,
-    /// Whether constraints are satisfied
     #[pyo3(get)]
     pub constraints_satisfied: bool,
-    /// Unit norm preserved (for Polar mode)
     #[pyo3(get)]
     pub unit_norm_preserved: bool,
 }
 
 #[pymethods]
 impl PyQuantizationResult {
-    /// Compute the norm of the quantized vector.
     pub fn norm(&self) -> f64 {
         self.data.iter().map(|x| x * x).sum::<f64>().sqrt()
     }
     
-    /// Check if unit norm is preserved within tolerance.
     pub fn check_unit_norm(&self, tolerance: f64) -> bool {
         (self.norm() - 1.0).abs() < tolerance
     }
@@ -359,11 +314,6 @@ pub struct PyPythagoreanQuantizer {
 
 #[pymethods]
 impl PyPythagoreanQuantizer {
-    /// Create a new Pythagorean quantizer.
-    ///
-    /// Args:
-    ///     mode (int): Quantization mode (0=Ternary, 1=Polar, 2=Turbo, 3=Hybrid)
-    ///     bits (int): Bits per element (default: 4)
     #[new]
     #[pyo3(signature = (mode=3, bits=4))]
     pub fn new(mode: usize, bits: u8) -> Self {
@@ -380,31 +330,26 @@ impl PyPythagoreanQuantizer {
         }
     }
     
-    /// Create a quantizer optimized for LLM weights (ternary).
     #[staticmethod]
     pub fn for_llm() -> Self {
         Self::new(0, 1)
     }
     
-    /// Create a quantizer optimized for embeddings (polar).
     #[staticmethod]
     pub fn for_embeddings() -> Self {
         Self::new(1, 8)
     }
     
-    /// Create a quantizer optimized for vector databases (turbo).
     #[staticmethod]
     pub fn for_vector_db() -> Self {
         Self::new(2, 4)
     }
     
-    /// Create a hybrid quantizer that auto-selects mode.
     #[staticmethod]
     pub fn hybrid() -> Self {
         Self::new(3, 4)
     }
     
-    /// Get the quantization mode.
     #[getter]
     pub fn mode_name(&self) -> String {
         match self.mode {
@@ -415,7 +360,6 @@ impl PyPythagoreanQuantizer {
         }
     }
     
-    /// Quantize data with constraint preservation.
     pub fn quantize(&self, data: Vec<f64>) -> PyQuantizationResult {
         let mode = self.select_mode(&data);
         
@@ -443,12 +387,10 @@ impl PyPythagoreanQuantizer {
         }
     }
     
-    /// Snap a value to the nearest Pythagorean ratio.
     pub fn snap_to_pythagorean(&self, value: f64) -> f64 {
         snap_to_rational_internal(value)
     }
     
-    /// Snap to Pythagorean lattice with explicit rational representation.
     pub fn snap_to_lattice(&self, value: f64, max_denominator: usize) -> (f64, i64, u64) {
         let mut best_val = value;
         let mut best_num = value.round() as i64;
@@ -644,38 +586,29 @@ impl PyPythagoreanQuantizer {
 // Holonomy Module Bindings
 // ============================================================================
 
-/// A 3x3 rotation matrix.
 pub type RotationMatrix = [[f64; 3]; 3];
 
-/// Result of holonomy computation.
 #[pyclass(name = "HolonomyResult")]
 #[derive(Clone, Debug)]
 pub struct PyHolonomyResult {
-    /// The holonomy matrix (product of all transformations around the cycle)
     #[pyo3(get)]
     pub matrix: Vec<Vec<f64>>,
-    /// Holonomy norm (deviation from identity)
     #[pyo3(get)]
     pub norm: f64,
-    /// Information content: I = -log|Hol(γ)|
     #[pyo3(get)]
     pub information: f64,
-    /// Whether holonomy is zero (identity matrix within tolerance)
     #[pyo3(get)]
     pub is_identity: bool,
-    /// Tolerance used for identity check
     #[pyo3(get)]
     pub tolerance: f64,
 }
 
 #[pymethods]
 impl PyHolonomyResult {
-    /// Check if the holonomy is within a custom tolerance.
     pub fn is_within_tolerance(&self, tolerance: f64) -> bool {
         self.norm < tolerance
     }
     
-    /// Get the angular deviation from identity (in radians).
     pub fn angular_deviation(&self) -> f64 {
         let trace = self.matrix[0][0] + self.matrix[1][1] + self.matrix[2][2];
         let cos_angle = ((trace - 1.0) / 2.0).clamp(-1.0, 1.0);
@@ -690,7 +623,6 @@ impl PyHolonomyResult {
     }
 }
 
-/// Generate an identity matrix.
 #[pyfunction]
 pub fn identity_matrix() -> Vec<Vec<f64>> {
     vec![
@@ -700,13 +632,6 @@ pub fn identity_matrix() -> Vec<Vec<f64>> {
     ]
 }
 
-/// Compute holonomy around a cycle of transformations.
-///
-/// Args:
-///     cycle (list): Sequence of 3x3 rotation matrices forming a closed loop
-///
-/// Returns:
-///     HolonomyResult: Result containing the holonomy matrix and consistency check
 #[pyfunction]
 pub fn compute_holonomy(cycle: Vec<Vec<Vec<f64>>>) -> PyHolonomyResult {
     let tolerance = 1e-6;
@@ -721,23 +646,14 @@ pub fn compute_holonomy(cycle: Vec<Vec<Vec<f64>>>) -> PyHolonomyResult {
         };
     }
     
-    // Compute product of all rotations around the cycle
     let mut product = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
     for rotation in &cycle {
         let m = vec_to_matrix(rotation);
         product = matrix_multiply(&product, &m);
     }
     
-    // Compute norm of deviation from identity
     let norm = deviation_from_identity(&product);
-    
-    // Compute information: I = -log|Hol(γ)|
-    let information = if norm > 0.0 {
-        -norm.log2()
-    } else {
-        f64::INFINITY
-    };
-    
+    let information = if norm > 0.0 { -norm.log2() } else { f64::INFINITY };
     let is_identity = norm < tolerance;
     
     PyHolonomyResult {
@@ -749,14 +665,6 @@ pub fn compute_holonomy(cycle: Vec<Vec<Vec<f64>>>) -> PyHolonomyResult {
     }
 }
 
-/// Verify that holonomy is zero around all given cycles.
-///
-/// Args:
-///     cycles (list): Collection of cycles to check
-///     tolerance (float): Maximum allowed deviation from identity
-///
-/// Returns:
-///     bool: True if all cycles have zero holonomy
 #[pyfunction]
 pub fn verify_holonomy(cycles: Vec<Vec<Vec<Vec<f64>>>>, tolerance: f64) -> bool {
     cycles.iter().all(|cycle| {
@@ -765,7 +673,6 @@ pub fn verify_holonomy(cycles: Vec<Vec<Vec<Vec<f64>>>>, tolerance: f64) -> bool 
     })
 }
 
-/// Generate a rotation matrix around the X axis.
 #[pyfunction]
 pub fn rotation_x(angle: f64) -> Vec<Vec<f64>> {
     let c = angle.cos();
@@ -777,7 +684,6 @@ pub fn rotation_x(angle: f64) -> Vec<Vec<f64>> {
     ]
 }
 
-/// Generate a rotation matrix around the Y axis.
 #[pyfunction]
 pub fn rotation_y(angle: f64) -> Vec<Vec<f64>> {
     let c = angle.cos();
@@ -789,7 +695,6 @@ pub fn rotation_y(angle: f64) -> Vec<Vec<f64>> {
     ]
 }
 
-/// Generate a rotation matrix around the Z axis.
 #[pyfunction]
 pub fn rotation_z(angle: f64) -> Vec<Vec<f64>> {
     let c = angle.cos();
@@ -801,7 +706,6 @@ pub fn rotation_z(angle: f64) -> Vec<Vec<f64>> {
     ]
 }
 
-/// Holonomy checker for incremental verification.
 #[pyclass(name = "HolonomyChecker")]
 pub struct PyHolonomyChecker {
     accumulated: RotationMatrix,
@@ -811,7 +715,6 @@ pub struct PyHolonomyChecker {
 
 #[pymethods]
 impl PyHolonomyChecker {
-    /// Create a new holonomy checker.
     #[new]
     #[pyo3(signature = (tolerance=1e-6))]
     pub fn new(tolerance: f64) -> Self {
@@ -822,14 +725,12 @@ impl PyHolonomyChecker {
         }
     }
     
-    /// Apply a transformation step.
     pub fn apply(&mut self, rotation: Vec<Vec<f64>>) {
         let m = vec_to_matrix(&rotation);
         self.accumulated = matrix_multiply(&self.accumulated, &m);
         self.step_count += 1;
     }
     
-    /// Check current holonomy without closing the cycle.
     pub fn check_partial(&self) -> PyHolonomyResult {
         let norm = deviation_from_identity(&self.accumulated);
         let information = if norm > 0.0 { -norm.log2() } else { f64::INFINITY };
@@ -843,7 +744,6 @@ impl PyHolonomyChecker {
         }
     }
     
-    /// Close the cycle and check holonomy.
     pub fn check_closed(&self) -> PyHolonomyResult {
         let inverse = transpose(&self.accumulated);
         let cycle = vec![
@@ -853,13 +753,11 @@ impl PyHolonomyChecker {
         compute_holonomy(cycle)
     }
     
-    /// Reset to initial state.
     pub fn reset(&mut self) {
         self.accumulated = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
         self.step_count = 0;
     }
     
-    /// Get the number of steps applied.
     #[getter]
     pub fn step_count(&self) -> usize {
         self.step_count
@@ -925,7 +823,6 @@ fn deviation_from_identity(matrix: &RotationMatrix) -> f64 {
 // Manifold Module (Legacy Compatibility)
 // ============================================================================
 
-/// A Pythagorean manifold for deterministic vector snapping
 #[pyclass(name = "PythagoreanManifold")]
 pub struct PyManifold {
     density: usize,
@@ -934,32 +831,28 @@ pub struct PyManifold {
 
 #[pymethods]
 impl PyManifold {
-    /// Create a new Pythagorean manifold with specified density
     #[new]
     pub fn new(density: usize) -> Self {
         let states = generate_pythagorean_states(density);
         PyManifold { density, states }
     }
 
-    /// Get the number of valid states in the manifold
     #[getter]
     pub fn state_count(&self) -> usize {
         self.states.len()
     }
 
-    /// Get the density parameter used to create this manifold
     #[getter]
     pub fn density(&self) -> usize {
         self.density
     }
 
-    /// Snap a 2D vector to the nearest Pythagorean triple
     pub fn snap(&self, x: f64, y: f64) -> (f64, f64, f64) {
         let (snapped_x, snapped_y, noise) = snap_to_manifold(x, y, &self.states);
         (snapped_x, snapped_y, noise)
     }
     
-    /// Snap multiple vectors at once
+    /// Snap multiple vectors at once (batch operation)
     pub fn snap_batch(&self, vectors: Vec<(f64, f64)>) -> Vec<(f64, f64, f64)> {
         vectors.iter().map(|(x, y)| self.snap(*x, *y)).collect()
     }
@@ -1025,7 +918,6 @@ fn snap_to_manifold(x: f64, y: f64, states: &[(f64, f64)]) -> (f64, f64, f64) {
     (snapped_x, snapped_y, noise)
 }
 
-/// Snap a vector using a default manifold
 #[pyfunction]
 #[pyo3(signature = (x, y, density=200))]
 pub fn snap(x: f64, y: f64, density: usize) -> (f64, f64, f64) {
@@ -1033,7 +925,6 @@ pub fn snap(x: f64, y: f64, density: usize) -> (f64, f64, f64) {
     snap_to_manifold(x, y, &states)
 }
 
-/// Generate Pythagorean triples up to max hypotenuse
 #[pyfunction]
 pub fn generate_triples(max_c: i32) -> Vec<(i32, i32, i32)> {
     let mut triples = Vec::new();
@@ -1095,6 +986,6 @@ fn constraint_theory(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(snap, m)?)?;
     m.add_function(wrap_pyfunction!(generate_triples, m)?)?;
     
-    m.add("__version__", "0.2.0")?;
+    m.add("__version__", "0.3.0")?;
     Ok(())
 }

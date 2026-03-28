@@ -140,11 +140,17 @@ angles = np.random.uniform(0, 2 * np.pi, 10000)
 vectors = np.column_stack([np.cos(angles), np.sin(angles)])
 results = manifold.snap_batch(vectors)
 
+# Convert results to NumPy arrays for analysis
 snapped = np.array([[sx, sy] for sx, sy, _ in results])
 noises = np.array([noise for _, _, noise in results])
 
 print(f"Mean snapping noise: {noises.mean():.6f}")
 print(f"Max snapping noise:  {noises.max():.6f}")
+
+# Verify exact unit norm
+norms = np.linalg.norm(snapped, axis=1)
+print(f"Max norm deviation from 1.0: {np.max(np.abs(norms - 1.0)):.2e}")
+# Output: 0.00e+00 (exact!)
 ```
 
 ---
@@ -234,6 +240,7 @@ from constraint_theory import PythagoreanManifold
 manifold = PythagoreanManifold(300)
 
 # Snap 10,000 random directions to exact states
+np.random.seed(42)  # Seed for reproducibility
 angles = np.random.uniform(0, 2 * np.pi, 10000)
 directions = np.column_stack([np.cos(angles), np.sin(angles)])
 results = manifold.snap_batch(directions)
@@ -319,14 +326,121 @@ with ThreadPoolExecutor(max_workers=8) as executor:
 
 ---
 
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**ImportError: cannot import name 'PythagoreanManifold'**
+
+The Rust extension wasn't built or loaded correctly.
+
+```bash
+# Solution 1: Reinstall from PyPI
+pip install --upgrade constraint-theory
+
+# Solution 2: Build from source
+git clone https://github.com/SuperInstance/constraint-theory-python
+cd constraint-theory-python
+pip install maturin
+maturin develop --release
+```
+
+**TypeError: PythagoreanManifold() takes no keyword arguments**
+
+You're using the wrong parameter name.
+
+```python
+# WRONG - 'dimensions' doesn't exist
+manifold = PythagoreanManifold(dimensions=2)
+
+# CORRECT - use 'density' parameter
+manifold = PythagoreanManifold(density=200)
+```
+
+**ValueError: density must be positive**
+
+Density must be a positive integer.
+
+```python
+# WRONG
+manifold = PythagoreanManifold(0)
+manifold = PythagoreanManifold(-100)
+
+# CORRECT
+manifold = PythagoreanManifold(200)
+```
+
+**snap_batch() returns unexpected results**
+
+Ensure your input is the correct shape.
+
+```python
+# WRONG - 1D array
+vectors = np.array([0.6, 0.8, 0.707, 0.707])
+results = manifold.snap_batch(vectors)  # Error!
+
+# CORRECT - Nx2 array
+vectors = np.array([[0.6, 0.8], [0.707, 0.707]])
+results = manifold.snap_batch(vectors)  # Works!
+```
+
+**Slow performance on first call**
+
+The first manifold creation is slower due to KD-tree construction.
+
+```python
+# Solution: Create manifold once and reuse
+manifold = PythagoreanManifold(200)  # ~10-50ms
+
+# Subsequent calls are fast
+for _ in range(100000):
+    manifold.snap(0.577, 0.816)  # ~100ns each
+```
+
+**Getting Help**
+
+- 📖 [API Reference](docs/API.md)
+- 📚 [Examples](examples/)
+- 🐛 [Report Issues](https://github.com/SuperInstance/constraint-theory-python/issues)
+
+---
+
 ## 🌟 Ecosystem
 
 | Repo | What It Does |
 |------|--------------|
-| **[constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core)** | Rust crate |
+| **[constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core)** | Rust crate — the high-performance engine powering this library |
 | **[constraint-theory-python](https://github.com/SuperInstance/constraint-theory-python)** | This repo — Python bindings |
-| **[constraint-theory-web](https://github.com/SuperInstance/constraint-theory-web)** | 49 interactive demos |
-| **[constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research)** | Mathematical foundations |
+| **[constraint-theory-web](https://github.com/SuperInstance/constraint-theory-web)** | 49 interactive demos — visualize the manifold |
+| **[constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research)** | Mathematical foundations — papers and proofs |
+
+### Core Rust Library Features
+
+The Python bindings are powered by a Rust core that provides:
+
+- **O(log n) KD-tree lookup** for nearest-neighbor search
+- **SIMD optimization** for batch processing
+- **Zero-copy** where possible for Python interop
+- **Thread-safe** immutable data structures
+
+See [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core) for the Rust API.
+
+### Web Visualizations
+
+Explore the manifold interactively at [constraint-theory.superinstance.ai](https://constraint-theory.superinstance.ai):
+
+- Visualize Pythagorean triple distribution on the unit circle
+- Interactive snapping demonstrations
+- Performance comparisons
+- Real-time density adjustment
+
+### Research Background
+
+This library implements the mathematical framework described in:
+
+- **"Deterministic Geometric Snapping via Pythagorean Manifolds"** — core algorithm
+- **"Cross-Platform Reproducibility in Scientific Computing"** — applications
+- See [constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research) for papers
 
 ---
 

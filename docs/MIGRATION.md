@@ -568,9 +568,86 @@ x, y, _ = manifold.snap(0.6, 0.8)
 
 ---
 
+## Ecosystem Integration
+
+### Rust Core Library
+
+The Python bindings are powered by [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core), a high-performance Rust implementation that provides:
+
+- **O(log n) KD-tree lookup** for nearest-neighbor search
+- **SIMD optimization** for batch processing
+- **Memory-efficient** state storage
+- **Thread-safe** immutable data structures
+
+For performance-critical applications, consider using the Rust crate directly:
+
+```rust
+// Rust equivalent
+use constraint_theory::PythagoreanManifold;
+
+let manifold = PythagoreanManifold::new(200)?;
+let (x, y, noise) = manifold.snap(0.577, 0.816)?;
+```
+
+### Web Visualizations
+
+Explore the Pythagorean manifold interactively at [constraint-theory.superinstance.ai](https://constraint-theory.superinstance.ai):
+
+- **Visualize** triple distribution on the unit circle
+- **Interactive** snapping demonstrations
+- **Compare** densities and resolutions
+- **Understand** the noise metric
+
+The visualizations are built with [constraint-theory-web](https://github.com/SuperInstance/constraint-theory-web).
+
+### Research Papers
+
+The mathematical foundations are described in:
+
+- **"Deterministic Geometric Snapping via Pythagorean Manifolds"** — Core algorithm and complexity analysis
+- **"Cross-Platform Reproducibility in Numerical Computing"** — Applications in scientific computing
+- **"Exact Constraint Satisfaction for Game Physics"** — Game development applications
+
+See [constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research) for papers and proofs.
+
+### Integration Patterns
+
+#### Python + Rust Hybrid
+
+For maximum performance, use Python for orchestration and call into Rust for heavy computation:
+
+```python
+# Python orchestration
+from constraint_theory import PythagoreanManifold
+import numpy as np
+
+manifold = PythagoreanManifold(1000)
+
+# Batch process in Rust (via Python bindings)
+large_dataset = np.random.randn(1_000_000, 2)
+results = manifold.snap_batch(large_dataset)
+```
+
+#### Multi-language Pipeline
+
+```
+Python (orchestration)
+    ↓
+constraint-theory-python (this library)
+    ↓
+constraint-theory-core (Rust engine)
+    ↓
+KD-tree lookup in Rust
+```
+
+---
+
 ## Getting Help
 
 - **Documentation:** [API Reference](API.md)
 - **Examples:** [examples/](../examples/)
 - **Issues:** [GitHub Issues](https://github.com/SuperInstance/constraint-theory-python/issues)
 - **Core Library:** [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core)
+- **Web Demos:** [constraint-theory-web](https://github.com/SuperInstance/constraint-theory-web)
+- **Research:** [constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research)
+- **Live Demo:** [constraint-theory.superinstance.ai](https://constraint-theory.superinstance.ai)

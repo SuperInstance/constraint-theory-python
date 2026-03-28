@@ -57,11 +57,91 @@ When using this library:
 2. **Memory Management**: The library uses Rust's memory safety guarantees, but ensure you're using the latest version
 3. **Batch Processing**: For large datasets, use `snap_batch()` which is optimized for performance
 
-## Known Security Considerations
+## Security Considerations for PyO3 Bindings
+
+### Memory Safety
+
+The Python bindings use PyO3, which provides safe FFI between Python and Rust:
+
+| Security Feature | Implementation |
+|------------------|----------------|
+| **Memory Safety** | Rust's ownership system prevents use-after-free, buffer overflows, and dangling pointers |
+| **Null Safety** | Rust's Option type enforces null checking at compile time |
+| **Thread Safety** | `Send` and `Sync` traits ensure thread-safe data access |
+| **Panic Handling** | Rust panics are caught and converted to Python exceptions |
+
+### Attack Surface Analysis
+
+| Component | Risk Level | Mitigation |
+|-----------|------------|------------|
+| `PythagoreanManifold(density)` | Low | Integer validation, bounded memory allocation |
+| `snap(x, y)` | Low | Pure computation, no side effects, type checked at FFI |
+| `snap_batch(vectors)` | Low | SIMD computation, GIL released, memory bounded by input |
+| `generate_triples(max_c)` | Low | Integer math only, output size bounded |
+
+### FFI Security Considerations
+
+```python
+# Type checking at FFI boundary
+# PyO3 validates all types before passing to Rust
+manifold = PythagoreanManifold(200)
+
+# These raise TypeError before reaching Rust
+manifold.snap("invalid", 0.8)    # TypeError
+manifold.snap(None, 0.8)         # TypeError
+manifold.snap([], 0.8)           # TypeError
+```
+
+### Panic Safety
+
+Rust panics are caught and converted to Python exceptions:
+
+```python
+# This would panic in Rust, but raises Python exception instead
+try:
+    PythagoreanManifold(0)  # Invalid density
+except (ValueError, RuntimeError) as e:
+    print(f"Caught error: {e}")
+```
+
+### Thread Safety Guarantees
+
+| Operation | Thread Safe | Notes |
+|-----------|-------------|-------|
+| Manifold construction | Yes | Each thread gets its own manifold |
+| Shared manifold read | Yes | Immutable after construction |
+| Concurrent `snap()` calls | Yes | No mutable state |
+| Concurrent `snap_batch()` calls | Yes | GIL released, safe parallel access |
+
+### Denial of Service Considerations
+
+```python
+# Large densities can cause slow construction
+# Consider validating density in application code
+MAX_REASONABLE_DENSITY = 10000
+
+def create_manifold_safely(density: int) -> 'PythagoreanManifold':
+    if not isinstance(density, int):
+        raise TypeError("density must be integer")
+    if density <= 0:
+        raise ValueError("density must be positive")
+    if density > MAX_REASONABLE_DENSITY:
+        raise ValueError(f"density {density} exceeds maximum {MAX_REASONABLE_DENSITY}")
+    return PythagoreanManifold(density)
+```
+
+### Known Security Considerations
 
 - This library performs geometric calculations and does not handle cryptographic operations
 - The library uses PyO3 for Python bindings, benefiting from Rust's memory safety
 - No known security vulnerabilities in the current version
+
+### Dependencies Security
+
+| Dependency | Purpose | Security Notes |
+|------------|---------|----------------|
+| `pyo3` | Python bindings | Memory-safe FFI, actively maintained |
+| `constraint-theory-core` | Core algorithm | Rust memory safety guarantees |
 
 ## Security Updates
 

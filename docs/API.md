@@ -4,6 +4,7 @@ Complete API documentation for Constraint Theory Python bindings.
 
 ## Table of Contents
 
+- [Schema Alignment](#schema-alignment)
 - [Installation](#installation)
 - [Module Overview](#module-overview)
 - [Classes](#classes)
@@ -11,10 +12,48 @@ Complete API documentation for Constraint Theory Python bindings.
 - [Functions](#functions)
   - [snap](#snap)
   - [generate_triples](#generate_triples)
-- [Types and Constants](#types-and-constants)
+- [Type Aliases](#type-aliases)
+- [Protocol Classes](#protocol-classes)
 - [Error Handling](#error-handling)
 - [Thread Safety](#thread-safety)
 - [Performance Characteristics](#performance-characteristics)
+- [Type Hints](#type-hints)
+
+---
+
+## Schema Alignment (PASS 5)
+
+This Python API is designed to match the Rust core (constraint-theory-core) exactly.
+
+### API Mapping
+
+| Python | Rust Core | Notes |
+|--------|-----------|-------|
+| `PythagoreanManifold(density)` | `PythagoreanManifold::new(density)` | Constructor |
+| `manifold.snap(x, y)` | `manifold.snap([x, y])` | Python uses separate args |
+| `manifold.snap_batch(vectors)` | `manifold.snap_batch_simd(vectors)` | SIMD batch processing |
+| `manifold.state_count` | `manifold.state_count()` | Python property vs Rust method |
+| `manifold.density` | `self.density` | Python property |
+
+### Type Mapping
+
+| Rust Type | Python Type | Notes |
+|-----------|-------------|-------|
+| `usize` | `int` | Density parameter |
+| `f32` | `float` | Rust uses 32-bit, Python uses 64-bit floats |
+| `[f32; 2]` | `Tuple[float, float]` | Fixed array to tuple |
+| `Vec<([f32; 2], f32)>` | `List[Tuple[float, float, float]]` | Batch results |
+| `i32` | `int` | Triple components |
+
+### WASM vs PyO3 Differences
+
+| Aspect | WASM Bindings | PyO3 Bindings |
+|--------|---------------|---------------|
+| Vector Input | `Float32Array` | Python `list`/`tuple` or NumPy array |
+| Vector Output | `Float32Array` | Python `tuple` |
+| GIL | N/A | Released for batch operations |
+| Memory | Shared ArrayBuffer | Copied at FFI boundary |
+| Async | Native Promise support | Use `run_in_executor` |
 
 ---
 
@@ -351,6 +390,121 @@ where m > n > 0, gcd(m, n) = 1, and exactly one of m, n is even.
 
 ---
 
+## Type Aliases (PASS 6)
+
+The library provides type aliases for clarity in type hints:
+
+### `VectorLike`
+
+```python
+from constraint_theory import VectorLike
+
+# Type: Union[List[Tuple[float, float]], numpy.ndarray]
+# Represents input that can be a list of (x, y) tuples or NumPy array
+```
+
+**Usage:**
+
+```python
+from typing import List
+from constraint_theory import PythagoreanManifold, VectorLike
+
+def process_vectors(vectors: VectorLike) -> List[tuple]:
+    manifold = PythagoreanManifold(200)
+    return manifold.snap_batch(vectors)
+```
+
+### `SnapResultTuple`
+
+```python
+from constraint_theory import SnapResultTuple
+
+# Type: Tuple[float, float, float]
+# Represents a snap result: (snapped_x, snapped_y, noise)
+```
+
+**Usage:**
+
+```python
+from constraint_theory import PythagoreanManifold, SnapResultTuple
+
+def snap_and_validate(manifold: PythagoreanManifold, x: float, y: float, max_noise: float = 0.1) -> SnapResultTuple:
+    result = manifold.snap(x, y)
+    if result[2] > max_noise:
+        raise ValueError(f"Noise {result[2]} exceeds threshold {max_noise}")
+    return result
+```
+
+### `PythagoreanTripleTuple`
+
+```python
+from constraint_theory import PythagoreanTripleTuple
+
+# Type: Tuple[int, int, int]
+# Represents a Pythagorean triple: (a, b, c) where a² + b² = c²
+```
+
+---
+
+## Protocol Classes (PASS 6)
+
+Protocol classes enable structural subtyping for type checking:
+
+### `ManifoldProtocol`
+
+```python
+from constraint_theory import ManifoldProtocol
+
+# Protocol defining the manifold interface
+# Matches the Rust trait implicitly
+```
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `state_count` | `int` | Number of valid Pythagorean states |
+| `density` | `int` | Density parameter used in construction |
+
+**Methods:**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `snap` | `(x: float, y: float) -> Tuple[float, float, float]` | Snap single vector |
+| `snap_batch` | `(vectors: List[Tuple[float, float]]) -> List[Tuple[float, float, float]]` | Batch snap |
+
+**Usage:**
+
+```python
+from typing import Protocol
+from constraint_theory import ManifoldProtocol
+
+def process_with_manifold(manifold: ManifoldProtocol, x: float, y: float) -> float:
+    """Works with any manifold-like object."""
+    _, _, noise = manifold.snap(x, y)
+    return noise
+```
+
+### `SnapResult`
+
+```python
+from constraint_theory import SnapResult
+
+# Protocol for snap result - supports indexing and len()
+# Enables duck typing with tuples
+```
+
+### `Vector2D`
+
+```python
+from constraint_theory import Vector2D
+
+# Protocol for 2D vector input - supports indexing
+# Works with tuples, lists, NumPy arrays
+```
+
+---
+
 ## Types and Constants
 
 ### `__version__`
@@ -362,6 +516,17 @@ print(__version__)  # e.g., "0.1.0"
 ```
 
 The package version string, following semantic versioning.
+
+### `CORE_MIN_VERSION` and `CORE_MAX_VERSION`
+
+```python
+from constraint_theory import CORE_MIN_VERSION, CORE_MAX_VERSION
+
+print(f"Compatible with core {CORE_MIN_VERSION} to {CORE_MAX_VERSION}")
+# Output: Compatible with core (1, 0, 0) to (2, 0, 0)
+```
+
+Version bounds for the Rust core library compatibility.
 
 ---
 
@@ -482,13 +647,65 @@ print(f"Speedup: {single_time/batch_time:.1f}x")
 
 ---
 
+## Type Hints
+
+The library provides comprehensive type hints for static analysis:
+
+```python
+from typing import List, Tuple, Union
+from numpy.typing import NDArray
+import numpy as np
+
+# Type aliases for clarity
+Vector2D = Tuple[float, float]
+SnapResult = Tuple[float, float, float]  # (x, y, noise)
+VectorLike = Union[List[Vector2D], NDArray[np.floating]]
+
+class PythagoreanManifold:
+    def __init__(self, density: int) -> None: ...
+    def snap(self, x: float, y: float) -> SnapResult: ...
+    def snap_batch(self, vectors: VectorLike) -> List[SnapResult]: ...
+    @property
+    def state_count(self) -> int: ...
+
+def snap(manifold: PythagoreanManifold, x: float, y: float) -> SnapResult: ...
+def generate_triples(max_c: int) -> List[Tuple[int, int, int]]: ...
+```
+
+### Using with mypy
+
+```bash
+# Install mypy
+pip install mypy
+
+# Type check your code
+mypy your_script.py
+```
+
+### Type-safe Usage Example
+
+```python
+from constraint_theory import PythagoreanManifold, snap, generate_triples
+from typing import List, Tuple
+
+def process_vectors(vectors: List[Tuple[float, float]]) -> List[Tuple[float, float, float]]:
+    """Process vectors with full type safety."""
+    manifold = PythagoreanManifold(density=200)
+    return manifold.snap_batch(vectors)
+
+# mypy will verify type correctness
+results = process_vectors([(0.6, 0.8), (0.707, 0.707)])
+```
+
+---
+
 ## Version History
 
 | Version | Changes |
 |---------|---------|
 | 0.1.0 | Initial release with core snapping functionality |
-| 0.2.0 | Added batch processing with NumPy support |
-| 0.3.0 | Performance optimizations and expanded documentation |
+| 0.2.0 | Added batch processing with NumPy support (planned) |
+| 0.3.0 | Performance optimizations and expanded documentation (planned) |
 
 ---
 
@@ -497,3 +714,5 @@ print(f"Speedup: {single_time/batch_time:.1f}x")
 - [Migration Guide](MIGRATION.md) - For users coming from other libraries
 - [Examples](../examples/) - Practical code examples
 - [Constraint Theory Core](https://github.com/SuperInstance/constraint-theory-core) - Rust implementation
+- [Web Demos](https://constraint-theory.superinstance.ai) - Interactive visualizations
+- [Research Papers](https://github.com/SuperInstance/constraint-theory-research) - Mathematical foundations

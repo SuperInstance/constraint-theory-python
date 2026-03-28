@@ -6,6 +6,16 @@ Deterministic geometric snapping with O(log n) KD-tree lookup.
 This package provides Python bindings for the Constraint Theory library,
 enabling exact constraint satisfaction in Python applications.
 
+Schema Alignment (PASS 5):
+==========================
+This Python API is designed to match the Rust core (constraint-theory-core) exactly.
+
+Mapping to Rust API:
+- Python: PythagoreanManifold(density) -> Rust: PythagoreanManifold::new(density)
+- Python: manifold.snap(x, y) -> Rust: manifold.snap([x, y])
+- Python: manifold.snap_batch(vectors) -> Rust: manifold.snap_batch_simd(vectors)
+- Python: manifold.state_count -> Rust: manifold.state_count()
+
 Key Features:
 - PythagoreanManifold: Discrete manifold with exact Pythagorean states
 - PythagoreanQuantizer: Unified quantization (TERNARY, POLAR, TURBO, HYBRID)
@@ -34,15 +44,54 @@ For Financial Applications:
     >>> print(price.to_string())  # Exact representation, no floating-point drift
 """
 
+from typing import List, Tuple, Union, Optional, Protocol, runtime_checkable
+import sys
+
 __version__ = "0.3.0"
 
-# Core manifold module
-from .manifold import (
-    PythagoreanManifold,
-    snap,
-    generate_triples,
-    generate_pythagorean_lattice,
-)
+# Version pinning requirements (PASS 8)
+# Compatible with constraint-theory-core >= 1.0.0, < 2.0.0
+CORE_MIN_VERSION = (1, 0, 0)
+CORE_MAX_VERSION = (2, 0, 0)
+
+# Protocol classes for type checking (PASS 6)
+@runtime_checkable
+class SnapResult(Protocol):
+    """Protocol for snap result - a tuple of (x, y, noise)."""
+    def __getitem__(self, index: int) -> float: ...
+    def __len__(self) -> int: ...
+
+@runtime_checkable
+class Vector2D(Protocol):
+    """Protocol for 2D vector input - supports indexing."""
+    def __getitem__(self, index: int) -> float: ...
+    def __len__(self) -> int: ...
+
+@runtime_checkable
+class ManifoldProtocol(Protocol):
+    """Protocol defining the manifold interface - matches Rust trait."""
+    @property
+    def state_count(self) -> int: ...
+    def snap(self, x: float, y: float) -> Tuple[float, float, float]: ...
+    def snap_batch(self, vectors: List[Tuple[float, float]]) -> List[Tuple[float, float, float]]: ...
+
+# Try to import Rust backend for performance
+try:
+    from .constraint_theory_python import (
+        PythagoreanManifold,
+        snap,
+        generate_triples,
+    )
+    HAS_RUST_BACKEND = True
+except ImportError:
+    # Import pure Python fallbacks
+    from .manifold import (
+        PythagoreanManifold,
+        snap,
+        generate_triples,
+        generate_pythagorean_lattice,
+    )
+    HAS_RUST_BACKEND = False
 
 # Unified quantizer module
 from .quantizer import (
@@ -92,27 +141,38 @@ from .financial import (
     calculate_sharpe_ratio,
 )
 
-# Try to import Rust backend for performance
-try:
-    from .constraint_theory_python import (
-        PythagoreanManifold as _RustManifold,
-        snap as _rust_snap,
-        generate_triples as _rust_generate_triples,
-    )
-    HAS_RUST_BACKEND = True
-except ImportError:
-    HAS_RUST_BACKEND = False
+# Type aliases for clarity (PASS 6)
+VectorLike = Union[List[Tuple[float, float]], 'numpy.ndarray']
+"""Type alias for vector input - supports lists or NumPy arrays."""
+
+SnapResultTuple = Tuple[float, float, float]
+"""Type alias for snap result: (snapped_x, snapped_y, noise)."""
+
+PythagoreanTripleTuple = Tuple[int, int, int]
+"""Type alias for Pythagorean triple: (a, b, c) where a² + b² = c²."""
 
 __all__ = [
     # Version
     "__version__",
     "HAS_RUST_BACKEND",
     
-    # Core manifold
+    # Core classes
     "PythagoreanManifold",
+    
+    # Functions
     "snap",
     "generate_triples",
     "generate_pythagorean_lattice",
+    
+    # Type aliases (PASS 6)
+    "VectorLike",
+    "SnapResultTuple",
+    "PythagoreanTripleTuple",
+    
+    # Protocols (PASS 6)
+    "SnapResult",
+    "Vector2D",
+    "ManifoldProtocol",
     
     # Quantization
     "QuantizationMode",

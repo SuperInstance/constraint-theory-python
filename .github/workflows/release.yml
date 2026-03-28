@@ -1,0 +1,211 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.2.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # =============================================================================
+  # Build and Publish Wheels
+  # =============================================================================
+  build-wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist
+          manylinux: auto
+      
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: dist/
+          retention-days: 30
+
+  # =============================================================================
+  # Build Source Distribution
+  # =============================================================================
+  build-sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install maturin
+        run: pip install maturin
+      
+      - name: Build sdist
+        run: maturin sdist --out dist
+      
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/
+          retention-days: 30
+
+  # =============================================================================
+  # Publish to PyPI
+  # =============================================================================
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [build-wheels, build-sdist]
+    permissions:
+      id-token: write  # For trusted publishing
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+      
+      - name: List distributions
+        run: ls -la dist/
+      
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: false
+
+  # =============================================================================
+  # Publish to TestPyPI (for testing)
+  # =============================================================================
+  publish-testpypi:
+    name: Publish to TestPyPI
+    runs-on: ubuntu-latest
+    needs: [build-wheels, build-sdist]
+    if: github.event_name == 'workflow_dispatch'  # Only for manual testing
+    permissions:
+      id-token: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+      
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
+
+  # =============================================================================
+  # Verify Release
+  # =============================================================================
+  verify-release:
+    name: Verify PyPI Release
+    runs-on: ubuntu-latest
+    needs: publish-pypi
+    steps:
+      - name: Wait for PyPI
+        run: sleep 60
+      
+      - name: Install from PyPI
+        run: |
+          pip install --upgrade pip
+          pip install constraint-theory
+      
+      - name: Verify import
+        run: |
+          python -c "from constraint_theory import PythagoreanManifold, __version__; print(f'Version: {__version__}')"
+          python -c "
+          from constraint_theory import PythagoreanManifold
+          m = PythagoreanManifold(200)
+          x, y, noise = m.snap(0.577, 0.816)
+          print(f'Snap result: ({x:.4f}, {y:.4f}), noise={noise:.6f}')
+          assert abs(x - 0.6) < 0.01, f'Expected x≈0.6, got {x}'
+          assert abs(y - 0.8) < 0.01, f'Expected y≈0.8, got {y}'
+          print('Verification passed!')
+          "
+      
+      - name: Run example
+        run: |
+          python -c "
+          from constraint_theory import PythagoreanManifold, generate_triples
+          
+          # Create manifold
+          m = PythagoreanManifold(200)
+          print(f'Manifold: {m}')
+          print(f'States: {m.state_count}')
+          
+          # Generate some triples
+          triples = generate_triples(50)
+          print(f'Generated {len(triples)} triples')
+          
+          # Test batch operation
+          vectors = [[0.6, 0.8], [0.707, 0.707], [0.1, 0.995]]
+          results = m.snap_batch(vectors)
+          print(f'Batch results: {len(results)}')
+          
+          print('All checks passed!')
+          "
+
+  # =============================================================================
+  # Create GitHub Release Notes
+  # =============================================================================
+  update-release-notes:
+    name: Update Release Notes
+    runs-on: ubuntu-latest
+    needs: verify-release
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract the latest version's changelog
+          VERSION=${{ github.event.release.tag_name }}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+          # Try to extract changelog entry
+          if [ -f CHANGELOG.md ]; then
+            # Get the section for this version
+            sed -n "/## \[${VERSION#v}\]/,/## \[/p" CHANGELOG.md | head -n -1 > /tmp/release_notes.md
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            cat /tmp/release_notes.md >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            ## Installation
+            
+            ```bash
+            pip install constraint-theory==${{ steps.changelog.outputs.version }}
+            ```
+            
+            ## What's Changed
+            
+            ${{ steps.changelog.outputs.changelog }}
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.release.tag_name }}...${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

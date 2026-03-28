@@ -4,6 +4,11 @@ Batch processing example for Constraint Theory Python bindings.
 
 This example demonstrates efficient batch processing techniques for
 processing large numbers of vectors.
+
+Run with: python examples/batch_processing.py
+
+Requirements:
+    pip install constraint-theory
 """
 
 import time
