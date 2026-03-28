@@ -462,19 +462,6 @@ maturin develop --release
 
 ---
 
-## 💬 What People Are Saying
-
-> "pip install constraint-theory solved our Monte Carlo drift in production. Worth every nanosecond."
-> — *Data Scientist, climate modeling startup*
-
-> "The NumPy integration is seamless. I swapped normalization for snapping and our tests stopped flaking."
-> — *ML Engineer, computer vision*
-
-> "Finally, scientific computing that's reproducible by default, not by effort."
-> — *Researcher, computational physics*
-
----
-
 ## 📜 License
 
 MIT — see [LICENSE](LICENSE).
