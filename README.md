@@ -1,6 +1,6 @@
 # Constraint Theory Python
 
-> **Python simplicity. Rust performance. Exact geometry with zero drift.**
+> **Your floating-point drift ends here. Snap vectors to exact Pythagorean triples.**
 
 [![GitHub stars](https://img.shields.io/github/stars/SuperInstance/constraint-theory-python?style=social)](https://github.com/SuperInstance/constraint-theory-python)
 [![PyPI version](https://badge.fury.io/py/constraint-theory.svg)](https://pypi.org/project/constraint-theory/)
@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/SuperInstance/constraint-theory-python/actions/workflows/ci.yml/badge.svg)](https://github.com/SuperInstance/constraint-theory-python/actions/workflows/ci.yml)
 
-**📦 [Install from PyPI](https://pypi.org/project/constraint-theory/)** | **🌐 [Live Demos](https://constraint-theory.superinstance.ai)** | **📚 [Documentation](https://github.com/SuperInstance/constraint-theory-core)**
+**📦 [pip install constraint-theory](https://pypi.org/project/constraint-theory/)** | **🌐 [Live Demo](https://constraint-theory.superinstance.ai)** | **📚 [Full Docs](https://github.com/SuperInstance/constraint-theory-core)**
 
 ---
 
@@ -21,7 +21,7 @@
 0.9999999999999999  # "Close enough" for science?
 ```
 
-**Your physics simulation gives different results on laptop vs. cluster. This library fixes an entire debugging class.**
+**Your physics simulation gives different results on laptop vs. cluster. Your tests flake. Your Monte Carlo won't reproduce.**
 
 ---
 
@@ -59,10 +59,11 @@
 pip install constraint-theory
 ```
 
-**Verify it works:**
-```python
-python -c "from constraint_theory import PythagoreanManifold; m = PythagoreanManifold(200); print(f'✓ {m.state_count} exact states loaded')"
-# Output: ✓ 1013 exact states loaded
+**Try it now (30 seconds):**
+```bash
+pip install constraint-theory
+python -c "from constraint_theory import PythagoreanManifold; m = PythagoreanManifold(200); x, y, _ = m.snap(0.577, 0.816); print(f'Exact: ({x}, {y})')"
+# Output: Exact: (0.6, 0.8)
 ```
 
 ---
@@ -118,7 +119,9 @@ x, y, noise = manifold.snap(0.577, 0.816)  # (0.6, 0.8, 0.0236)
 
 ---
 
-## 🔢 NumPy Integration
+## 🔢 NumPy Integration — Drop-In Replacement for Normalization
+
+Works seamlessly with your existing NumPy code. Replace `v / np.linalg.norm(v)` with exact snapping:
 
 ```python
 import numpy as np
@@ -126,7 +129,9 @@ from constraint_theory import PythagoreanManifold
 
 manifold = PythagoreanManifold(200)
 
-# Snap NumPy array to exact direction
+# Your old way: v / np.linalg.norm(v) → floating-point drift
+# Your new way: manifold.snap(x, y) → exact everywhere
+
 vector = np.array([0.577, 0.816])
 sx, sy, noise = manifold.snap(vector[0], vector[1])
 
@@ -364,8 +369,8 @@ MIT — see [LICENSE](LICENSE).
 
 <div align="center">
 
-**If your simulation gives different results on laptop vs. cluster, Constraint Theory fixes an entire debugging class.**
+**Stop debugging floating-point drift. Your competitors already did.**
 
-**[Star this repo](https://github.com/SuperInstance/constraint-theory-python)** · **[Try the demos](https://constraint-theory.superinstance.ai)**
+**[⭐ Star this repo](https://github.com/SuperInstance/constraint-theory-python)** · **[Try the live demo](https://constraint-theory.superinstance.ai)**
 
 </div>
