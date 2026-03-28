@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/SuperInstance/constraint-theory-python/actions/workflows/ci.yml/badge.svg)](https://github.com/SuperInstance/constraint-theory-python/actions/workflows/ci.yml)
 
-**📦 [pip install constraint-theory](https://pypi.org/project/constraint-theory/)** | **🌐 [Live Demo](https://constraint-theory.superinstance.ai)** | **📚 [Full Docs](https://github.com/SuperInstance/constraint-theory-core)**
+**📦 [pip install constraint-theory](https://pypi.org/project/constraint-theory/)** | **🌐 [Live Demo](https://constraint-theory-web.pages.dev)** | **📚 [Full Docs](https://github.com/SuperInstance/constraint-theory-core)**
 
 ---
 
@@ -427,7 +427,7 @@ See [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-
 
 ### Web Visualizations
 
-Explore the manifold interactively at [constraint-theory.superinstance.ai](https://constraint-theory.superinstance.ai):
+Explore the manifold interactively at [constraint-theory-web.pages.dev](https://constraint-theory-web.pages.dev):
 
 - Visualize Pythagorean triple distribution on the unit circle
 - Interactive snapping demonstrations
@@ -472,6 +472,6 @@ MIT — see [LICENSE](LICENSE).
 
 **Stop debugging floating-point drift. Your competitors already did.**
 
-**[⭐ Star this repo](https://github.com/SuperInstance/constraint-theory-python)** · **[Try the live demo](https://constraint-theory.superinstance.ai)**
+**[⭐ Star this repo](https://github.com/SuperInstance/constraint-theory-python)** · **[Try the live demo](https://constraint-theory-web.pages.dev)**
 
 </div>
