@@ -244,6 +244,26 @@ class PythagoreanQuantizer:
         self._manifold = PythagoreanManifold(density=density)
         self._lattice = generate_pythagorean_lattice(max_hypotenuse=density)
     
+    @classmethod
+    def for_llm(cls) -> 'PythagoreanQuantizer':
+        """Create a quantizer optimized for LLM weights (ternary)."""
+        return cls(mode=QuantizationMode.TERNARY, bits=1)
+    
+    @classmethod
+    def for_embeddings(cls) -> 'PythagoreanQuantizer':
+        """Create a quantizer optimized for embeddings (polar)."""
+        return cls(mode=QuantizationMode.POLAR, bits=8, constraints=['unit_norm'])
+    
+    @classmethod
+    def for_vector_db(cls) -> 'PythagoreanQuantizer':
+        """Create a quantizer optimized for vector databases (turbo)."""
+        return cls(mode=QuantizationMode.TURBO, bits=4)
+    
+    @classmethod
+    def hybrid(cls) -> 'PythagoreanQuantizer':
+        """Create a hybrid quantizer that auto-selects mode."""
+        return cls(mode=QuantizationMode.HYBRID, bits=4)
+    
     def quantize(
         self,
         data: Any,
