@@ -4,6 +4,11 @@ NumPy integration example for Constraint Theory Python bindings.
 
 This example demonstrates how to use the library with NumPy arrays
 for efficient batch processing and array operations.
+
+Run with: python examples/numpy_integration.py
+
+Requirements:
+    pip install constraint-theory numpy
 """
 
 import numpy as np

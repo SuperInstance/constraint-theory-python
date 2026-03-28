@@ -2,23 +2,22 @@
 
 **Repository:** https://github.com/SuperInstance/constraint-theory-python
 **Language:** Python (PyO3 bindings to Rust core)
-**Version:** 0.2.0
+**Version:** 0.1.0
 **Last Updated:** 2025-01-27
 
 ---
 
 ## Welcome to Constraint Theory Python
 
-This repository provides **Python bindings** for Constraint Theory, enabling exact constraint satisfaction in Python applications including NumPy, PyTorch, TensorFlow, and scikit-learn workflows.
+This repository provides **Python bindings** for Constraint Theory, enabling exact constraint satisfaction in Python applications including NumPy workflows.
 
 ### What You'll Learn
 
 1. Installation and setup
 2. Core API usage
 3. NumPy integration
-4. Machine learning applications
-5. Financial applications
-6. Performance optimization
+4. Practical applications
+5. Performance optimization
 
 ---
 
@@ -26,15 +25,13 @@ This repository provides **Python bindings** for Constraint Theory, enabling exa
 
 ### Required
 
-- **Python 3.9+**
+- **Python 3.8+**
 - **pip** or **conda**
-- **NumPy** (for array operations)
 
-### Optional (for ML integration)
+### Optional (for advanced use cases)
 
-- **PyTorch 2.0+**
-- **TensorFlow 2.10+**
-- **scikit-learn 1.0+**
+- **NumPy 1.20+** (for batch processing)
+- **PyTorch 2.0+** or **TensorFlow 2.10+** (for ML integration patterns)
 
 ---
 
@@ -53,10 +50,7 @@ pip install constraint-theory
 git clone https://github.com/SuperInstance/constraint-theory-python.git
 cd constraint-theory-python
 
-# Install with pip
-pip install -e .
-
-# Or with maturin (for development)
+# Install with maturin (for development)
 pip install maturin
 maturin develop --release
 ```
@@ -69,8 +63,9 @@ print(f"Version: {constraint_theory.__version__}")
 
 # Quick test
 from constraint_theory import PythagoreanManifold
-manifold = PythagoreanManifold(dimensions=2)
-print("Installation successful!")
+manifold = PythagoreanManifold(density=200)
+print(f"Manifold has {manifold.state_count} states")
+# Output: Manifold has 1013 states
 ```
 
 ---
@@ -82,37 +77,37 @@ print("Installation successful!")
 ```python
 from constraint_theory import PythagoreanManifold
 
-# Create a 2D manifold
-manifold = PythagoreanManifold(dimensions=2)
+# Create a manifold - the density parameter controls resolution
+# Higher density = more exact states = finer resolution
+manifold = PythagoreanManifold(density=200)
 
-# Snap a point to the Pythagorean lattice
-point = (0.7, 0.7)  # Not on unit circle
-snapped = manifold.snap(point)
+# Snap a point to the nearest Pythagorean triple
+# Input: (0.577, 0.816) - approximate direction
+# Output: (0.6, 0.8) - exact 3-4-5 triangle normalized
+x, y, noise = manifold.snap(0.577, 0.816)
 
-print(f"Original: {point}")
-print(f"Snapped: {snapped}")
-# Output: (0.6, 0.8) - a 3-4-5 triangle!
+print(f"Snapped: ({x:.4f}, {y:.4f}), noise: {noise:.6f}")
+# Output: Snapped: (0.6000, 0.8000), noise: 0.0236
 ```
 
-### 2. Quantization with Constraints
+### 2. Understanding the Noise Metric
 
 ```python
-from constraint_theory import PythagoreanQuantizer, QuantizationMode
+from constraint_theory import PythagoreanManifold
 
-# Create a ternary quantizer (BitNet-style)
-quantizer = PythagoreanQuantizer(
-    mode=QuantizationMode.TERNARY,
-    bits=1.58
-)
+manifold = PythagoreanManifold(density=200)
 
-# Quantize some weights
-weights = [0.5, -0.3, 0.9, -1.2, 0.0, 0.7]
-result = quantizer.quantize(weights)
+# Test vectors with different characteristics
+test_cases = [
+    ("Exact 3-4-5", (0.6, 0.8)),       # Should snap exactly
+    ("Exact 5-12-13", (0.384615, 0.923077)),
+    ("Near 45°", (0.707, 0.707)),      # Approximate
+    ("Arbitrary", (0.543, 0.839)),     # Random direction
+]
 
-print(f"Original: {weights}")
-print(f"Quantized: {result.data}")
-print(f"Codes: {result.codes}")  # {-1, 0, 1}
-print(f"Sparsity: {result.sparsity:.1%}")
+for name, (x, y) in test_cases:
+    sx, sy, noise = manifold.snap(x, y)
+    print(f"{name}: ({x:.3f}, {y:.3f}) -> ({sx:.4f}, {sy:.4f}), noise={noise:.6f}")
 ```
 
 ### 3. NumPy Integration
@@ -122,286 +117,306 @@ import numpy as np
 from constraint_theory import PythagoreanManifold
 
 # Create manifold
-manifold = PythagoreanManifold(dimensions=3)
+manifold = PythagoreanManifold(density=200)
 
-# Snap many points efficiently
-points = np.random.randn(1000, 3)
-points = points / np.linalg.norm(points, axis=1, keepdims=True)
+# Generate random unit vectors
+np.random.seed(42)
+angles = np.random.uniform(0, 2 * np.pi, 1000)
+vectors = np.column_stack([np.cos(angles), np.sin(angles)])
 
-snapped = manifold.snap_batch(points)
+# Snap all vectors efficiently
+results = manifold.snap_batch(vectors)
 
-# Verify unit norm preserved
-norms = np.linalg.norm(snapped, axis=1)
-print(f"Max norm deviation: {np.max(np.abs(norms - 1.0)):.2e}")
-# Output: ~1e-15 (machine precision)
+# Analyze results
+snapped = np.array([[sx, sy] for sx, sy, _ in results])
+noises = np.array([noise for _, _, noise in results])
+
+print(f"Mean noise: {noises.mean():.6f}")
+print(f"Max noise: {noises.max():.6f}")
 ```
 
 ---
 
 ## Core Concepts
 
-### 1. Constraint Manifolds
+### 1. The Pythagorean Manifold
+
+The `PythagoreanManifold` contains pre-computed normalized Pythagorean triples `(a/c, b/c)` where `a² + b² = c²`. Each state represents an exact point on the unit circle.
 
 ```python
-from constraint_theory import ConstraintManifold, Constraint
+from constraint_theory import PythagoreanManifold
 
-# Define custom constraints
-constraints = [
-    Constraint.unit_norm(),           # ||x|| = 1
-    Constraint.orthogonal_to([1, 0, 0]),  # x · [1,0,0] = 0
-]
+# Density controls the maximum hypotenuse in Euclid's formula
+# Higher density = more states = better resolution
+manifold = PythagoreanManifold(density=200)
 
-manifold = ConstraintManifold(constraints)
-
-# Find a point on the manifold
-point = manifold.project([0.5, 0.5, 0.5])
-print(f"Projected: {point}")  # [0, ~0.707, ~0.707]
+print(f"Total states: {manifold.state_count}")
+# Each state is a point (x, y) where x² + y² = 1 EXACTLY
 ```
 
-### 2. Hidden Dimensions
+**Density Guidelines:**
 
-```python
-from constraint_theory import HiddenDimensionEncoder
+| Density | Approximate States | Resolution | Use Case |
+|---------|-------------------|------------|----------|
+| 50 | ~250 | 0.02 | Quick prototypes |
+| 100 | ~500 | 0.01 | Game physics |
+| 200 | ~1000 | 0.005 | General purpose |
+| 500 | ~2500 | 0.002 | ML augmentation |
+| 1000 | ~5000 | 0.001 | Scientific computing |
 
-# Create encoder for 10 decimal places precision
-encoder = HiddenDimensionEncoder(precision=1e-10)
+### 2. Snapping Process
 
-# Lift to hidden dimensions
-point = [1.0, 2.0, 3.0]
-lifted = encoder.lift(point)
+The snapping algorithm uses a KD-tree for O(log n) lookup:
 
-print(f"Original dimensions: {len(point)}")
-print(f"Lifted dimensions: {len(lifted)}")  # +34 hidden dims
-
-# Project back
-projected = encoder.project(lifted)
-assert projected ≈ point  # Within precision
+```
+Input: (x, y) - any 2D vector
+         ↓
+Normalize: (x/|v|, y/|v|) - project to unit circle
+         ↓
+KD-Tree: O(log n) nearest neighbor search
+         ↓
+Output: (sx, sy, noise) - exact Pythagorean state + distance
 ```
 
-### 3. Holonomy Checking
+### 3. Deterministic Results
 
 ```python
-from constraint_theory import HolonomyChecker
+from constraint_theory import PythagoreanManifold
 
-checker = HolonomyChecker()
+manifold = PythagoreanManifold(density=200)
 
-# Define a cycle of operations
-cycle = [
-    ('rotate', {'axis': 'z', 'angle': 1.5708}),  # 90°
-    ('rotate', {'axis': 'x', 'angle': 1.5708}),
-    ('rotate', {'axis': 'z', 'angle': -1.5708}),
-]
-
-holonomy = checker.compute(cycle)
-
-if holonomy.is_identity():
-    print("Constraints are globally consistent!")
-else:
-    print(f"Holonomy error: {holonomy.error():.2e}")
+# Same input ALWAYS produces same output
+for _ in range(5):
+    x, y, noise = manifold.snap(0.577, 0.816)
+    print(f"Result: ({x:.6f}, {y:.6f})")
+# All outputs are IDENTICAL - deterministic!
 ```
 
 ---
 
-## Machine Learning Integration
+## NumPy Integration
 
-### PyTorch
+### Basic Batch Processing
+
+```python
+import numpy as np
+from constraint_theory import PythagoreanManifold
+
+manifold = PythagoreanManifold(density=200)
+
+# Create vectors as NumPy array
+vectors = np.array([
+    [0.6, 0.8],
+    [0.707, 0.707],
+    [0.1, 0.995],
+], dtype=np.float32)
+
+# snap_batch accepts NumPy arrays directly
+results = manifold.snap_batch(vectors)
+
+for i, (sx, sy, noise) in enumerate(results):
+    print(f"[{i}] ({vectors[i,0]:.3f}, {vectors[i,1]:.3f}) -> ({sx:.4f}, {sy:.4f})")
+```
+
+### Large-Scale Processing
+
+```python
+import numpy as np
+import time
+from constraint_theory import PythagoreanManifold
+
+manifold = PythagoreanManifold(density=500)
+
+# Generate 100,000 random unit vectors
+n = 100000
+angles = np.random.uniform(0, 2 * np.pi, n)
+vectors = np.column_stack([np.cos(angles), np.sin(angles)]).astype(np.float32)
+
+# Process with timing
+start = time.time()
+results = manifold.snap_batch(vectors)
+elapsed = time.time() - start
+
+print(f"Processed {n:,} vectors in {elapsed*1000:.2f}ms")
+print(f"Throughput: {n/elapsed:,.0f} vectors/second")
+
+# Analyze noise distribution
+noises = np.array([noise for _, _, noise in results])
+print(f"Mean noise: {noises.mean():.6f}")
+print(f"Max noise: {noises.max():.6f}")
+```
+
+### Replacing Normalization
+
+```python
+import numpy as np
+from constraint_theory import PythagoreanManifold
+
+manifold = PythagoreanManifold(density=200)
+
+# Old way: floating-point normalization
+def old_normalize(v):
+    return v / np.linalg.norm(v)
+
+# New way: exact Pythagorean snapping
+def exact_direction(x, y, manifold):
+    sx, sy, noise = manifold.snap(x, y)
+    return sx, sy, noise
+
+# Compare
+v = np.array([3, 4])
+normalized = old_normalize(v)
+print(f"Float normalization: ({normalized[0]:.10f}, {normalized[1]:.10f})")
+# Note: 0.6 and 0.8 may have floating-point representation errors
+
+sx, sy, noise = exact_direction(3, 4, manifold)
+print(f"Exact snapping: ({sx:.10f}, {sy:.10f})")
+# These are EXACT Pythagorean values
+```
+
+---
+
+## Machine Learning Integration Patterns
+
+While the core library provides geometric snapping, here are patterns for ML integration:
+
+### Data Augmentation with Exact Directions
+
+```python
+import numpy as np
+from constraint_theory import PythagoreanManifold
+
+manifold = PythagoreanManifold(density=500)
+
+def augment_gradient(dx, dy):
+    """Deterministic gradient augmentation for training."""
+    sx, sy, noise = manifold.snap(dx, dy)
+    # Return exact direction - reproducible across runs
+    return sx, sy
+
+# Use in training loop for reproducible augmentation
+gradients = np.random.randn(1000, 2)
+augmented = [augment_gradient(g[0], g[1]) for g in gradients]
+```
+
+### Weight Quantization Helper
+
+```python
+import numpy as np
+from constraint_theory import PythagoreanManifold
+
+def quantize_directions(weights_2d, manifold):
+    """Quantize 2D weight directions to exact Pythagorean states."""
+    # Normalize weights
+    norms = np.linalg.norm(weights_2d, axis=1, keepdims=True)
+    normalized = weights_2d / norms
+    
+    # Snap to exact
+    results = manifold.snap_batch(normalized)
+    
+    # Reconstruct with original magnitudes
+    quantized = np.array([[sx, sy] for sx, sy, _ in results])
+    return quantized * norms
+
+# Example usage
+manifold = PythagoreanManifold(density=200)
+weights = np.random.randn(100, 2)
+quantized = quantize_directions(weights, manifold)
+```
+
+### PyTorch Integration Pattern
 
 ```python
 import torch
-import torch.nn as nn
-from constraint_theory import (
-    PythagoreanQuantizer,
-    QuantizationMode,
-    ConstraintEnforcedLayer,
-)
-
-# 1. Quantize existing weights
-model = MyModel()
-quantizer = PythagoreanQuantizer(QuantizationMode.TERNARY, 1.58)
-
-for name, param in model.named_parameters():
-    if 'weight' in name:
-        result = quantizer.quantize(param.detach().numpy())
-        param.data = torch.from_numpy(result.data)
-
-# 2. Use constraint-enforced layers
-class ConstrainedModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.layer1 = ConstraintEnforcedLayer(
-            in_features=784,
-            out_features=256,
-            constraint='unit_norm'  # Preserve unit norm
-        )
-        self.layer2 = nn.Linear(256, 10)
-    
-    def forward(self, x):
-        x = self.layer1(x)
-        x = torch.relu(x)
-        return self.layer2(x)
-```
-
-### TensorFlow
-
-```python
-import tensorflow as tf
-from constraint_theory import PythagoreanQuantizer, QuantizationMode
-
-# Custom constraint layer
-class PythagoreanConstraint(tf.keras.constraints.Constraint):
-    def __init__(self, max_hypotenuse=1000):
-        self.max_hypotenuse = max_hypotenuse
-        self.manifold = PythagoreanManifold(dimensions=2)
-    
-    def __call__(self, w):
-        # Snap weights to Pythagorean lattice
-        snapped = self.manifold.snap_batch(w.numpy())
-        return tf.constant(snapped)
-
-# Use in model
-model = tf.keras.Sequential([
-    tf.keras.layers.Dense(
-        128,
-        kernel_constraint=PythagoreanConstraint()
-    ),
-    tf.keras.layers.Dense(10)
-])
-```
-
-### scikit-learn
-
-```python
-from sklearn.base import BaseEstimator, TransformerMixin
+import numpy as np
 from constraint_theory import PythagoreanManifold
 
-class PythagoreanProjector(BaseEstimator, TransformerMixin):
-    """Project data onto Pythagorean lattice."""
+class ExactDirectionLayer(torch.nn.Module):
+    """Custom layer that snaps outputs to exact Pythagorean directions."""
     
-    def __init__(self, dimensions=2):
-        self.dimensions = dimensions
-        self.manifold = None
+    def __init__(self, density=200):
+        super().__init__()
+        self.manifold = PythagoreanManifold(density)
     
-    def fit(self, X, y=None):
-        self.manifold = PythagoreanManifold(self.dimensions)
-        return self
-    
-    def transform(self, X):
-        return self.manifold.snap_batch(X)
+    def forward(self, x):
+        # x: (batch, 2) tensor
+        with torch.no_grad():
+            # Convert to numpy, snap, convert back
+            np_x = x.detach().cpu().numpy()
+            results = self.manifold.snap_batch(np_x)
+            snapped = np.array([[sx, sy] for sx, sy, _ in results])
+            return torch.from_numpy(snapped).to(x.device)
 
-# Use in pipeline
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-
-pipeline = Pipeline([
-    ('scaler', StandardScaler()),
-    ('projector', PythagoreanProjector(dimensions=2)),
-])
-
-X_transformed = pipeline.fit_transform(X)
+# Usage
+layer = ExactDirectionLayer(density=200)
+output = layer(torch.randn(32, 2))
 ```
 
 ---
 
-## Financial Applications
+## Practical Applications
 
-### Multi-Plane Portfolio Optimization
+### Game Development - Deterministic Physics
+
+```python
+from constraint_theory import PythagoreanManifold
+
+manifold = PythagoreanManifold(density=150)
+
+def process_player_input(vx, vy):
+    """Convert player input to exact direction for networked physics."""
+    dx, dy, noise = manifold.snap(vx, vy)
+    return dx, dy  # Same on ALL clients - no reconciliation needed
+
+# All clients see identical physics
+direction = process_player_input(0.7, 0.7)
+print(f"Exact direction: {direction}")
+```
+
+### Scientific Computing - Monte Carlo
 
 ```python
 import numpy as np
-from constraint_theory import MultiPlaneOptimizer
+from constraint_theory import PythagoreanManifold
 
-# Asset returns and covariance
-n_assets = 100
-returns = np.random.randn(n_assets) * 0.1
-covariance = np.random.randn(n_assets, n_assets)
-covariance = covariance @ covariance.T  # Positive definite
+manifold = PythagoreanManifold(density=300)
 
-# Create optimizer
-optimizer = MultiPlaneOptimizer(
-    constraints=[
-        {'type': 'budget', 'sum': 1.0},      # Sum of weights = 1
-        {'type': 'long_only'},                # All weights >= 0
-        {'type': 'max_weight', 'max': 0.05}, # Max 5% per asset
-    ]
-)
+def monte_carlo_directions(n_samples, seed=42):
+    """Generate reproducible random directions for Monte Carlo."""
+    np.random.seed(seed)
+    angles = np.random.uniform(0, 2 * np.pi, n_samples)
+    raw_directions = np.column_stack([np.cos(angles), np.sin(angles)])
+    
+    # Snap to exact - reproducible on any platform
+    results = manifold.snap_batch(raw_directions)
+    return [(sx, sy) for sx, sy, _ in results]
 
-# Optimize
-result = optimizer.optimize(returns, covariance)
-
-print(f"Expected return: {result.expected_return:.2%}")
-print(f"Volatility: {result.volatility:.2%}")
-print(f"Sharpe ratio: {result.sharpe_ratio:.2f}")
-
-# Speedup vs standard optimization
-print(f"Compute time: {result.compute_time*1000:.1f}ms")
-# Standard: ~2.5s, Constraint Theory: ~1.5ms (1600x faster!)
+# Same results on laptop, server, cluster
+directions = monte_carlo_directions(10000)
 ```
 
-### Exact Financial Calculations
+### Robotics - Navigation
 
 ```python
-from constraint_theory import ExactArithmetic
+import math
+from constraint_theory import PythagoreanManifold
 
-# Avoid floating-point errors in financial calculations
-arith = ExactArithmetic()
+manifold = PythagoreanManifold(density=200)
 
-# Sum of 1000 payments of $0.10
-payments = [0.10] * 1000
+def navigate_toward(current, target):
+    """Calculate exact heading toward target."""
+    dx = target[0] - current[0]
+    dy = target[1] - current[1]
+    
+    # Get exact direction
+    sx, sy, noise = manifold.snap(dx, dy)
+    heading = math.degrees(math.atan2(sy, sx))
+    
+    return heading, (sx, sy)
 
-# Standard float (wrong!)
-float_sum = sum(payments)
-print(f"Float sum: {float_sum}")  # 99.9999999999998
-
-# Exact arithmetic (correct!)
-exact_sum = arith.sum(payments)
-print(f"Exact sum: {exact_sum}")  # 100.0
-```
-
----
-
-## Advanced Usage
-
-### Custom Lattices
-
-```python
-from constraint_theory import Lattice, LatticeConfig
-
-# Create custom lattice
-config = LatticeConfig(
-    dimensions=4,
-    basis_vectors=[
-        [1, 0, 0, 0],
-        [0.5, 0.866, 0, 0],
-        [0.5, 0.289, 0.816, 0],
-        [0.5, 0.289, 0.204, 0.790],
-    ],
-    snapping_method='nearest',
-)
-
-lattice = Lattice(config)
-point = [1.5, 0.8, 0.4, 0.2]
-snapped = lattice.snap(point)
-```
-
-### GPU Acceleration
-
-```python
-from constraint_theory import PythagoreanQuantizer, QuantizationMode
-
-# Create GPU-enabled quantizer
-quantizer = PythagoreanQuantizer(
-    mode=QuantizationMode.TURBO,
-    bits=4,
-    device='cuda'  # Use GPU
-)
-
-# Large-scale quantization
-import numpy as np
-large_matrix = np.random.randn(100000, 768)  # 100K embeddings
-
-# GPU-accelerated quantization
-result = quantizer.quantize(large_matrix)
-print(f"Quantized in {result.compute_time:.2f}s")
+# Robot navigation with exact headings
+heading, direction = navigate_toward((0, 0), (3, 4))
+print(f"Heading: {heading:.2f}°, Direction: {direction}")
 ```
 
 ---
@@ -414,74 +429,53 @@ print(f"Quantized in {result.compute_time:.2f}s")
 class PythagoreanManifold:
     """Constraint manifold with Pythagorean lattice snapping."""
     
-    def __init__(self, dimensions: int, max_hypotenuse: int = 1000):
-        """Initialize manifold."""
+    def __init__(self, density: int):
+        """
+        Initialize manifold with specified density.
+        
+        Args:
+            density: Maximum value of m in Euclid's formula. 
+                     Higher = more states = finer resolution.
+        """
     
-    def snap(self, point: ArrayLike) -> np.ndarray:
-        """Snap single point to lattice."""
+    def snap(self, x: float, y: float) -> tuple[float, float, float]:
+        """
+        Snap single vector to nearest Pythagorean triple.
+        
+        Returns:
+            (snapped_x, snapped_y, noise) where noise is distance 
+            from input to snapped point.
+        """
     
-    def snap_batch(self, points: ArrayLike) -> np.ndarray:
-        """Snap multiple points efficiently."""
+    def snap_batch(self, vectors) -> list[tuple[float, float, float]]:
+        """
+        Snap multiple vectors efficiently.
+        
+        Args:
+            vectors: List of [x, y] pairs or Nx2 NumPy array
+        
+        Returns:
+            List of (snapped_x, snapped_y, noise) tuples
+        """
     
-    def within_radius(self, center: ArrayLike, radius: float) -> List[np.ndarray]:
-        """Find all lattice points within radius."""
-
-class PythagoreanQuantizer:
-    """Unified quantizer integrating TurboQuant, BitNet, PolarQuant."""
-    
-    def __init__(self, mode: QuantizationMode, bits: float, **kwargs):
-        """Initialize quantizer."""
-    
-    def quantize(self, data: ArrayLike) -> QuantizationResult:
-        """Quantize data with constraint preservation."""
-    
-    def dequantize(self, result: QuantizationResult) -> np.ndarray:
-        """Dequantize back to floating-point."""
-    
-    def build_index(self, data: ArrayLike) -> None:
-        """Build QJL index for ANN search."""
-    
-    def search(self, query: ArrayLike, k: int) -> List[int]:
-        """Fast nearest neighbor search."""
-
-class HiddenDimensionEncoder:
-    """Encoder for hidden dimension representation."""
-    
-    def __init__(self, precision: float):
-        """Initialize with target precision."""
-    
-    def lift(self, point: ArrayLike) -> np.ndarray:
-        """Lift to hidden dimensions."""
-    
-    def project(self, lifted: ArrayLike) -> np.ndarray:
-        """Project back to visible dimensions."""
-    
-    def hidden_dim_count(self) -> int:
-        """Compute k = ⌈log₂(1/ε)⌉."""
+    @property
+    def state_count(self) -> int:
+        """Number of exact Pythagorean states in the manifold."""
 ```
 
-### Enums
+### Functions
 
 ```python
-class QuantizationMode(Enum):
-    TERNARY = "ternary"    # BitNet-style {-1, 0, 1}
-    POLAR = "polar"        # PolarQuant for unit norm
-    TURBO = "turbo"        # TurboQuant near-optimal MSE
-    HYBRID = "hybrid"      # Auto-select mode
-```
+def snap(manifold: PythagoreanManifold, x: float, y: float) -> tuple[float, float, float]:
+    """Convenience function for one-off snapping."""
 
-### Results
-
-```python
-@dataclass
-class QuantizationResult:
-    data: np.ndarray           # Quantized data
-    codes: np.ndarray          # Integer codes
-    mode: QuantizationMode     # Mode used
-    mse: float                 # Mean squared error
-    compression_ratio: float   # Compression achieved
-    constraint_satisfaction: float  # 1.0 = fully satisfied
-    sparsity: float            # Fraction of zeros (ternary mode)
+def generate_triples(max_c: int) -> list[tuple[int, int, int]]:
+    """
+    Generate primitive Pythagorean triples with hypotenuse <= max_c.
+    
+    Returns:
+        List of (a, b, c) tuples where a² + b² = c²
+    """
 ```
 
 ---
@@ -490,87 +484,28 @@ class QuantizationResult:
 
 ### Benchmarks (Apple M1 Max)
 
-```python
-import numpy as np
-from constraint_theory import PythagoreanManifold, PythagoreanQuantizer, QuantizationMode
-
-# Snapping benchmark
-manifold = PythagoreanManifold(2)
-points = np.random.randn(100000, 2)
-
-import time
-start = time.time()
-snapped = manifold.snap_batch(points)
-print(f"Snapped 100K points in {time.time()-start:.3f}s")
-# Output: ~0.05s (2M points/sec)
-
-# Quantization benchmark
-quantizer = PythagoreanQuantizer(QuantizationMode.TURBO, 4)
-weights = np.random.randn(10000, 768)
-
-start = time.time()
-result = quantizer.quantize(weights)
-print(f"Quantized 10K×768 matrix in {time.time()-start:.3f}s")
-# Output: ~0.02s
-```
+| Operation | Time | Throughput |
+|-----------|------|------------|
+| Single snap | ~100 ns | 10M/sec |
+| Batch 1,000 | ~74 μs | 13M/sec |
+| Batch 10,000 | ~740 μs | 13M/sec |
+| Batch 100,000 | ~7.4 ms | 13M/sec |
 
 ### Memory Usage
 
-| Operation | Input Size | Memory |
-|-----------|------------|--------|
-| 2D snap | 1M points | ~16MB |
-| 3D snap | 1M points | ~24MB |
-| Ternary quantize | 10K×768 | ~8MB |
-| Turbo quantize | 10K×768 | ~15MB |
+| Density | States | Memory |
+|---------|--------|--------|
+| 100 | ~500 | ~40 KB |
+| 200 | ~1000 | ~80 KB |
+| 500 | ~2500 | ~200 KB |
+| 1000 | ~5000 | ~400 KB |
 
----
+### Optimization Tips
 
-## Examples
-
-### Run Examples
-
-```bash
-# Clone repository
-git clone https://github.com/SuperInstance/constraint-theory-python.git
-cd constraint-theory-python
-
-# Run examples
-python examples/quickstart.py
-python examples/numpy_integration.py
-python examples/ml_quantization.py
-python examples/financial_optimization.py
-python examples/robotics.py
-```
-
-### Example: ML Quantization
-
-```python
-# examples/ml_quantization.py
-import torch
-from constraint_theory import PythagoreanQuantizer, QuantizationMode
-
-# Load pre-trained model
-model = torch.load('my_model.pt')
-
-# Quantize all linear layers
-quantizer = PythagoreanQuantizer(QuantizationMode.TERNARY, 1.58)
-
-total_params = 0
-quantized_params = 0
-
-for name, param in model.named_parameters():
-    if 'weight' in name and param.dim() >= 2:
-        result = quantizer.quantize(param.detach().numpy())
-        
-        # Update weights
-        param.data = torch.from_numpy(result.data)
-        
-        total_params += param.numel()
-        quantized_params += param.numel()
-
-print(f"Quantized {quantized_params:,} parameters")
-print(f"Memory savings: {(1 - 1.58/32)*100:.1f}%")
-```
+1. **Reuse manifold instances** - Construction is expensive
+2. **Use batch operations** - 2-5x faster than individual snaps
+3. **Choose appropriate density** - Balance resolution vs. memory
+4. **Process in chunks** - For very large datasets (>100K)
 
 ---
 
@@ -582,27 +517,36 @@ print(f"Memory savings: {(1 - 1.58/32)*100:.1f}%")
 ```
 ImportError: cannot import name 'PythagoreanManifold'
 ```
-Solution: Ensure you have the latest version
+Solution: Ensure proper installation
 ```bash
 pip install --upgrade constraint-theory
 ```
 
-**2. Precision Issues**
+**2. Construction Error**
 ```
-Snapped point doesn't exactly satisfy constraint
+RuntimeError: density must be positive
 ```
-Solution: Increase max_hypotenuse
+Solution: Use positive density values
 ```python
-manifold = PythagoreanManifold(2, max_hypotenuse=10000)
+manifold = PythagoreanManifold(density=200)  # Correct
 ```
 
-**3. GPU Not Found**
+**3. Wrong API Usage**
+```python
+# WRONG - dimensions parameter doesn't exist
+manifold = PythagoreanManifold(dimensions=2)
+
+# CORRECT - use density parameter
+manifold = PythagoreanManifold(density=200)
 ```
-RuntimeError: CUDA not available
-```
-Solution: Install CUDA-enabled version
-```bash
-pip install constraint-theory[cuda]
+
+**4. NumPy Array Shape**
+```python
+# WRONG - 1D array
+vectors = np.array([0.6, 0.8, 0.707, 0.707])
+
+# CORRECT - Nx2 array
+vectors = np.array([[0.6, 0.8], [0.707, 0.707]])
 ```
 
 ---
@@ -612,14 +556,34 @@ pip install constraint-theory[cuda]
 ### Documentation
 
 - [API Reference](./docs/API.md)
-- [Migration Guide](./docs/MIGRATION.md)
 - [Examples](./examples/)
 
-### Related
+### Related Repositories
 
 - [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core) - Rust implementation
-- [constraint-theory-web](https://github.com/SuperInstance/constraint-theory-web) - Web experiments
-- [constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research) - Papers
+- [constraint-theory-web](https://github.com/SuperInstance/constraint-theory-web) - Interactive demos
+- [constraint-theory-research](https://github.com/SuperInstance/constraint-theory-research) - Mathematical foundations
+
+---
+
+## Examples
+
+Run the included examples:
+
+```bash
+# Clone repository
+git clone https://github.com/SuperInstance/constraint-theory-python.git
+cd constraint-theory-python
+
+# Run examples
+python examples/quickstart.py
+python examples/basic_usage.py
+python examples/numpy_integration.py
+python examples/batch_processing.py
+python examples/game_dev.py
+python examples/scientific.py
+python examples/robotics.py
+```
 
 ---
 
@@ -632,12 +596,8 @@ pip install -e ".[dev]"
 # Run tests
 pytest tests/
 
-# Format code
-black constraint_theory/
-isort constraint_theory/
-
-# Type check
-mypy constraint_theory/
+# Build from source
+maturin develop --release
 ```
 
 ---

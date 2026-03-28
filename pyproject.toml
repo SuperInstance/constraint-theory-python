@@ -16,22 +16,27 @@ maintainers = [
     {name = "SuperInstance", email = "contact@superinstance.ai"}
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Games/Entertainment",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
@@ -47,6 +52,10 @@ keywords = [
     "mathematics",
     "pyo3",
     "rust",
+    "reproducible",
+    "numerical-computing",
+    "game-physics",
+    "monte-carlo",
 ]
 
 [project.optional-dependencies]
@@ -55,6 +64,9 @@ dev = [
     "pytest-cov>=4.0",
     "numpy>=1.20",
     "maturin>=1.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "mypy>=1.0",
 ]
 numpy = ["numpy>=1.20"]
 all = [
@@ -67,6 +79,9 @@ Documentation = "https://github.com/SuperInstance/constraint-theory-python#readm
 Repository = "https://github.com/SuperInstance/constraint-theory-python"
 "Bug Tracker" = "https://github.com/SuperInstance/constraint-theory-python/issues"
 Changelog = "https://github.com/SuperInstance/constraint-theory-python/releases"
+"Rust Core" = "https://github.com/SuperInstance/constraint-theory-core"
+"Web Demos" = "https://github.com/SuperInstance/constraint-theory-web"
+"Research" = "https://github.com/SuperInstance/constraint-theory-research"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
@@ -89,3 +104,17 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
+
+[tool.black]
+line-length = 88
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

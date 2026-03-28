@@ -6,6 +6,11 @@ This example demonstrates the core functionality of the library:
 - Creating a Pythagorean manifold
 - Snapping individual vectors
 - Understanding the noise/resonance metric
+
+Run with: python examples/basic_usage.py
+
+Requirements:
+    pip install constraint-theory
 """
 
 from constraint_theory import PythagoreanManifold, snap, generate_triples

@@ -2,12 +2,74 @@
 //!
 //! This module provides Python access to the Constraint Theory Rust library
 //! via PyO3 bindings.
+//!
+//! # Schema Alignment (PASS 5)
+//!
+//! This Python API is designed to match the Rust core exactly:
+//!
+//! | Rust (constraint-theory-core) | Python (this module) |
+//! |-------------------------------|----------------------|
+//! | `PythagoreanManifold::new(density: usize)` | `PythagoreanManifold(density: int)` |
+//! | `manifold.snap([x, y]) -> ([f32; 2], f32)` | `manifold.snap(x, y) -> (float, float, float)` |
+//! | `manifold.snap_batch_simd(&vectors)` | `manifold.snap_batch(vectors)` |
+//! | `manifold.state_count()` | `manifold.state_count` (property) |
+//!
+//! # Type Mapping (PASS 6)
+//!
+//! | Rust Type | Python Type | Notes |
+//! |-----------|-------------|-------|
+//! | `usize` | `int` | Density parameter |
+//! | `f32` | `float` | 32-bit float on Rust, Python float is 64-bit |
+//! | `[f32; 2]` | `Tuple[float, float]` | Rust array -> Python tuple |
+//! | `Vec<([f32; 2], f32)>` | `List[Tuple[float, float, float]]` | Batch results |
+//!
+//! # Cross-Reference
+//!
+//! - Rust Core: https://github.com/SuperInstance/constraint-theory-core
+//! - WASM Bindings: https://github.com/SuperInstance/constraint-theory-wasm
+//! - Research: https://github.com/SuperInstance/constraint-theory-research
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use constraint_theory_core::{PythagoreanManifold, snap as rust_snap};
 
 /// A Pythagorean manifold for deterministic vector snapping
+///
+/// Schema Alignment (PASS 5):
+/// ==========================
+/// This class wraps the Rust `PythagoreanManifold` from constraint-theory-core.
+///
+/// # Rust API Reference
+///
+/// ```rust,ignore
+/// // Rust constructor
+/// let manifold = PythagoreanManifold::new(density: usize);
+///
+/// // Rust snap method - takes array, returns tuple
+/// let (snapped, noise) = manifold.snap([x, y]);
+/// // snapped: [f32; 2], noise: f32
+///
+/// // Rust batch method
+/// let results = manifold.snap_batch_simd(&vectors);
+/// // results: Vec<([f32; 2], f32)>
+///
+/// // Rust state count
+/// let count = manifold.state_count();
+/// // count: usize
+/// ```
+///
+/// # Python Adaptation
+///
+/// Python convenience methods adapt the Rust API:
+/// - `snap(x, y)` unpacks the array result to a 3-tuple `(x, y, noise)`
+/// - `state_count` is a property, not a method
+/// - `snap_batch` wraps `snap_batch_simd`
+///
+/// # Type Mapping
+///
+/// - Rust `usize` <-> Python `int`
+/// - Rust `f32` <-> Python `float` (note: Python uses 64-bit floats)
+/// - Rust `[f32; 2]` <-> Python `Tuple[float, float]`
 #[pyclass(name = "PythagoreanManifold")]
 pub struct PyManifold {
     inner: PythagoreanManifold,
@@ -44,6 +106,35 @@ impl PyManifold {
     }
 
     /// Snap multiple vectors at once using SIMD
+    ///
+    /// # Arguments
+    ///
+    /// * `vectors` - List of (x, y) tuples or NumPy Nx2 array
+    ///
+    /// # Returns
+    ///
+    /// List of (snapped_x, snapped_y, noise) tuples
+    ///
+    /// # GIL Handling (PASS 7)
+    ///
+    /// This method releases the GIL during computation, allowing
+    /// other Python threads to run concurrently. This is especially
+    /// beneficial for large batches.
+    ///
+    /// # NumPy Array Shape (PASS 6)
+    ///
+    /// Expected shape: (N, 2) where N is the number of vectors
+    /// - First column: x coordinates
+    /// - Second column: y coordinates
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// manifold = PythagoreanManifold(200)
+    /// vectors = [[0.6, 0.8], [0.707, 0.707]]
+    /// results = manifold.snap_batch(vectors)
+    /// # results = [(0.6, 0.8, 0.0), (0.6, 0.8, 0.014)]
+    /// ```
     pub fn snap_batch_simd(&self, py: Python<'_>, vectors: &PyList) -> PyResult<Vec<(f32, f32, f32)>> {
         let input: Vec<[f32; 2]> = vectors
             .iter()
@@ -53,6 +144,7 @@ impl PyManifold {
             })
             .collect::<PyResult<_>>()?;
         
+        // Release GIL for long-running operations (PASS 7)
         py.allow_threads(|| {
             let results = self.inner.snap_batch_simd(&input);
             Ok(results.into_iter().map(|(s, n)| (s[0], s[1], n)).collect())
