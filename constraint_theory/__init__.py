@@ -47,12 +47,199 @@ For Financial Applications:
 from typing import List, Tuple, Union, Optional, Protocol, runtime_checkable
 import sys
 
-__version__ = "0.3.0"
+__version__ = "1.0.1"
 
 # Version pinning requirements (PASS 8)
 # Compatible with constraint-theory-core >= 1.0.0, < 2.0.0
 CORE_MIN_VERSION = (1, 0, 0)
 CORE_MAX_VERSION = (2, 0, 0)
+
+
+# ============================================
+# Exception Classes
+# ============================================
+
+class ConstraintTheoryError(Exception):
+    """
+    Base exception for all constraint theory errors.
+    
+    All exceptions in this library inherit from this class, making it easy
+    to catch all constraint theory related errors with a single except clause.
+    
+    Attributes:
+        message: Human-readable error description
+        code: Error code for programmatic handling
+        details: Additional context about the error
+    """
+    
+    def __init__(self, message: str, code: Optional[str] = None, details: Optional[dict] = None):
+        super().__init__(message)
+        self.message = message
+        self.code = code or "UNKNOWN_ERROR"
+        self.details = details or {}
+    
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(code={self.code!r}, message={self.message!r})"
+    
+    def to_dict(self) -> dict:
+        """Convert exception to dictionary for serialization."""
+        return {
+            "type": self.__class__.__name__,
+            "code": self.code,
+            "message": self.message,
+            "details": self.details
+        }
+
+
+class InputValidationError(ConstraintTheoryError):
+    """
+    Raised when input validation fails.
+    
+    This exception indicates that the input provided to a function
+    does not meet the required criteria.
+    
+    Common causes:
+    - NaN or Infinity values in numeric input
+    - Zero vector where non-zero is required
+    - Invalid dimension or shape
+    """
+    
+    def __init__(self, message: str, details: Optional[dict] = None):
+        super().__init__(message, code="INPUT_VALIDATION_ERROR", details=details)
+
+
+class NaNInputError(InputValidationError):
+    """Raised when input contains NaN values."""
+    
+    def __init__(self, parameter_name: str = "input"):
+        super().__init__(
+            f"Input contains NaN (Not a Number) values. "
+            f"Parameter '{parameter_name}' must contain only valid numbers.",
+            details={"parameter": parameter_name, "issue": "nan_value"}
+        )
+
+
+class InfinityInputError(InputValidationError):
+    """Raised when input contains Infinity values."""
+    
+    def __init__(self, parameter_name: str = "input"):
+        super().__init__(
+            f"Input contains Infinity values. "
+            f"Parameter '{parameter_name}' must contain only finite numbers.",
+            details={"parameter": parameter_name, "issue": "infinity_value"}
+        )
+
+
+class ZeroVectorError(InputValidationError):
+    """Raised when a zero vector is provided where a non-zero vector is required."""
+    
+    def __init__(self, operation: str = "snap"):
+        super().__init__(
+            f"Zero vector provided for operation '{operation}'. "
+            f"A non-zero vector is required for normalization.",
+            details={"operation": operation, "issue": "zero_vector"}
+        )
+
+
+class ManifoldError(ConstraintTheoryError):
+    """Base class for manifold-related errors."""
+    
+    def __init__(self, message: str, code: str = "MANIFOLD_ERROR", details: Optional[dict] = None):
+        super().__init__(message, code=code, details=details)
+
+
+class InvalidDensityError(ManifoldError):
+    """Raised when an invalid density parameter is provided."""
+    
+    def __init__(self, density: int, reason: str = "must be positive"):
+        super().__init__(
+            f"Invalid density value: {density}. {reason.capitalize()}. "
+            f"Recommended range: 50-500 for most applications.",
+            code="INVALID_DENSITY",
+            details={"density": density, "reason": reason}
+        )
+
+
+class QuantizationError(ConstraintTheoryError):
+    """Base class for quantization-related errors."""
+    
+    def __init__(self, message: str, code: str = "QUANTIZATION_ERROR", details: Optional[dict] = None):
+        super().__init__(message, code=code, details=details)
+
+
+class UnsupportedModeError(QuantizationError):
+    """Raised when an unsupported quantization mode is requested."""
+    
+    def __init__(self, mode: str, supported_modes: List[str]):
+        super().__init__(
+            f"Unsupported quantization mode: '{mode}'. "
+            f"Supported modes: {', '.join(supported_modes)}",
+            code="UNSUPPORTED_MODE",
+            details={"requested_mode": mode, "supported_modes": supported_modes}
+        )
+
+
+class ConstraintViolationError(ConstraintTheoryError):
+    """Raised when a constraint cannot be satisfied during quantization."""
+    
+    def __init__(self, constraint: str, reason: str):
+        super().__init__(
+            f"Constraint violation: '{constraint}' cannot be satisfied. {reason}",
+            code="CONSTRAINT_VIOLATION",
+            details={"constraint": constraint, "reason": reason}
+        )
+
+
+class BufferSizeMismatchError(ConstraintTheoryError):
+    """Raised when input and output buffer sizes don't match."""
+    
+    def __init__(self, input_size: int, output_size: int):
+        super().__init__(
+            f"Buffer size mismatch: input has {input_size} elements, "
+            f"output has {output_size} elements. Sizes must match.",
+            code="BUFFER_SIZE_MISMATCH",
+            details={"input_size": input_size, "output_size": output_size}
+        )
+
+
+# ============================================
+# Validation Utilities
+# ============================================
+
+def validate_vector_2d(x: float, y: float, param_name: str = "vector") -> None:
+    """
+    Validate a 2D vector for use in snapping operations.
+    
+    Args:
+        x: X coordinate
+        y: Y coordinate
+        param_name: Parameter name for error messages
+        
+    Raises:
+        NaNInputError: If x or y is NaN
+        InfinityInputError: If x or y is Infinity
+    """
+    import math
+    
+    if math.isnan(x) or math.isnan(y):
+        raise NaNInputError(param_name)
+    if math.isinf(x) or math.isinf(y):
+        raise InfinityInputError(param_name)
+
+
+def validate_density(density: int) -> None:
+    """
+    Validate density parameter for manifold creation.
+    
+    Args:
+        density: Density value to validate
+        
+    Raises:
+        InvalidDensityError: If density is invalid
+    """
+    if not isinstance(density, int) or density <= 0:
+        raise InvalidDensityError(density, "must be a positive integer")
+
 
 # Protocol classes for type checking (PASS 6)
 @runtime_checkable
@@ -155,6 +342,23 @@ __all__ = [
     # Version
     "__version__",
     "HAS_RUST_BACKEND",
+    
+    # Exceptions
+    "ConstraintTheoryError",
+    "InputValidationError",
+    "NaNInputError",
+    "InfinityInputError",
+    "ZeroVectorError",
+    "ManifoldError",
+    "InvalidDensityError",
+    "QuantizationError",
+    "UnsupportedModeError",
+    "ConstraintViolationError",
+    "BufferSizeMismatchError",
+    
+    # Validation utilities
+    "validate_vector_2d",
+    "validate_density",
     
     # Core classes
     "PythagoreanManifold",

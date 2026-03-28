@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "constraint-theory"
-version = "0.1.0"
+version = "1.0.1"
 description = "Python bindings for Constraint Theory - deterministic geometric snapping with O(log n) KD-tree lookup"
 readme = "README.md"
 license = {text = "MIT"}
